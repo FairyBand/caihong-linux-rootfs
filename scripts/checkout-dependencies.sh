@@ -5,7 +5,7 @@ set -eu
 CDPATH=
 
 project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
-# shellcheck source=../dependencies.env
+# shellcheck source=dependencies.env
 . "$project_dir/dependencies.env"
 
 checkout()
