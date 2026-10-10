@@ -4,16 +4,17 @@
 [Unit]
 Description=Power on the Caihong Bluetooth controller
 Wants=bluetooth.service
-After=bluetooth.service caihong-hardware-mac.service
+After=bluetooth.service caihong-hardware-mac.service display-manager.service
 StartLimitIntervalSec=300s
 StartLimitBurst=3
 
 [Service]
 Type=oneshot
+ExecStartPre=/usr/bin/sleep 25
 ExecStart=/usr/local/sbin/caihong-bluetooth-autostart
 Restart=on-failure
 RestartSec=5s
-TimeoutStartSec=45s
+TimeoutStartSec=90s
 
 [Install]
 WantedBy=multi-user.target
