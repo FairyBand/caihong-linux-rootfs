@@ -77,6 +77,9 @@ var/lib/caihong-ssc/root/sensors/sns_reg.conf
 etc/udev/rules.d/70-dma-heap.rules
 etc/udev/rules.d/80-caihong-hotspot.rules
 usr/lib/firmware/ath12k/WCN7850/hw2.0/board-2.bin
+usr/lib/firmware/ath12k/WCN7850/hw2.0/caihong/amss.bin
+usr/lib/firmware/ath12k/WCN7850/hw2.0/caihong/m3.bin
+usr/lib/firmware/ath12k/WCN7850/hw2.0/caihong/regdb.bin
 usr/lib/firmware/awinic/caihong-aw88261-acf.bin
 usr/lib/firmware/awinic/caihong-aw88261-speaker-cal.bin
 usr/lib/firmware/novatek/DT-novatek-nt36532.bin
@@ -145,6 +148,22 @@ for path in $required_paths; do
 		failed=1
 	fi
 done
+
+# The downstream HMT 2.0 payload starts far enough to announce its version,
+# but never reaches WMI ready with the ath12k_wifi7 baseline used here.  Verify
+# every installed runtime payload so a stale root filesystem cannot silently
+# combine that firmware with the release kernel.
+if ! (cd -- "$target/usr/lib/firmware" &&
+	sha256sum -c "$project_dir/firmware/SHA256SUMS" >/dev/null); then
+	echo "installed runtime firmware does not match the Caihong release set" >&2
+	failed=1
+fi
+wifi_amss="$target/usr/lib/firmware/ath12k/WCN7850/hw2.0/caihong/amss.bin"
+wifi_version='QC_IMAGE_VERSION_STRING=WLAN.HMT.1.1.c7-00108-QCAHMTSWPL_V1.0_V2.0_SILICONZ_UPSTREAM-3'
+if ! grep -aFq "$wifi_version" "$wifi_amss" 2>/dev/null; then
+	echo "Caihong WLAN firmware is not the validated HMT 1.1.c7 build" >&2
+	failed=1
+fi
 
 for setting in build=caihong pipelines=simple ipas=simple \
 	softisp_gpu=enabled lens_shading=dynamic \

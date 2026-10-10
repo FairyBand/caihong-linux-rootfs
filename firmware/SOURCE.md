@@ -9,3 +9,9 @@ build.
 
 `SHA256SUMS` records every binary release input. The build verifies this file
 before embedding early GPU firmware or copying the runtime firmware tree.
+
+The WCN7850 variant deliberately uses
+`WLAN.HMT.1.1.c7-00108-QCAHMTSWPL_V1.0_V2.0_SILICONZ_UPSTREAM-3`. The stock
+HMT 2.0 payload can reach QMI on this kernel baseline, but times out waiting
+for the WMI unified-ready event and must not be substituted independently of
+the WLAN driver.
