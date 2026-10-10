@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
 set -eu
+CDPATH=
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 output=${1:-"$project_dir/release/caihong-boot.img"}
 kernel=${2:-"$project_dir/linux/out/arch/arm64/boot/Image"}
 dtb=${3:-"$project_dir/linux/out/arch/arm64/boot/dts/qcom/sm8650-oneplus-caihong.dtb"}

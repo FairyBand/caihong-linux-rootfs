@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
 set -Eeuo pipefail
+CDPATH=
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 output=${1:-"$project_dir/archlinuxarm-caihong-rootfs.img"}
 source_archive=${2:-"$project_dir/downloads/ArchLinuxARM-aarch64-latest.tar.gz"}
 module_tree=${MODULE_TREE:-"$project_dir/modules-current"}
@@ -40,7 +41,7 @@ if [[ ! -d $ssc_bundle ]]; then
 	echo "missing release SSC bundle: $ssc_bundle" >&2
 	exit 1
 fi
-ssc_bundle=$(CDPATH= cd -- "$ssc_bundle" && pwd)
+ssc_bundle=$(cd -- "$ssc_bundle" && pwd)
 
 # This is intentionally a native AArch64 development environment.  base-devel
 # provides GCC, binutils, make, pkgconf and the normal Arch package build tools;
@@ -236,7 +237,7 @@ fi
 
 output_dir=$(dirname -- "$output")
 mkdir -p "$output_dir" "$project_dir/build" "$project_dir/downloads"
-output_dir=$(CDPATH= cd -- "$output_dir" && pwd)
+output_dir=$(cd -- "$output_dir" && pwd)
 output="$output_dir/$(basename -- "$output")"
 temporary="$output.part"
 

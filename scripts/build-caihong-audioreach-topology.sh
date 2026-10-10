@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
 set -eu
+CDPATH=
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 source_dir=${AUDIOREACH_TOPOLOGY_DIR:-"$project_dir/external/audioreach-topology"}
 output=${1:-"$project_dir/build/audioreach-topology/qcom/sm8650/SM8650-MTP-tplg.bin"}
 template="$source_dir/SM8650-Caihong.m4"

@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
 set -eu
+CDPATH=
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 module_root=${1:-"$project_dir/modules-current"}
 target=${2:-"$project_dir/rootfs-stage"}
 expected_release=${CAIHONG_EXPECTED_RELEASE:-}
@@ -13,9 +14,9 @@ if [ ! -d "$module_root/lib/modules" ]; then
 	exit 1
 fi
 
-module_root=$(CDPATH= cd -- "$module_root" && pwd)
+module_root=$(cd -- "$module_root" && pwd)
 mkdir -p "$target"
-target=$(CDPATH= cd -- "$target" && pwd)
+target=$(cd -- "$target" && pwd)
 
 release=
 for candidate in "$module_root"/lib/modules/*; do

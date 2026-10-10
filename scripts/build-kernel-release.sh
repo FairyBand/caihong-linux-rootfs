@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
 set -eu
+CDPATH=
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 linux_dir=${LINUX_DIR:-"$project_dir/linux"}
 kernel_out=${KERNEL_OUT:-"$project_dir/build/linux"}
 module_tree=${MODULE_TREE:-"$project_dir/modules-current"}

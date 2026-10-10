@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
 set -Eeuo pipefail
+CDPATH=
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 rootfs=${1:-}
 chroot_tool=${CHROOT_TOOL:-arch-chroot}
 jobs=${LIBCAMERA_BUILD_JOBS:-}
@@ -13,7 +14,7 @@ if [[ -z $rootfs || ! -d $rootfs ]]; then
 	exit 2
 fi
 
-rootfs=$(CDPATH= cd -- "$rootfs" && pwd)
+rootfs=$(cd -- "$rootfs" && pwd)
 case "$rootfs" in
 	/|/boot|/home|/usr|/var)
 		echo "refusing unsafe rootfs directory: $rootfs" >&2

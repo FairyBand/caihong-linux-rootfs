@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
 set -eu
+CDPATH=
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
 bundle=${1:-}
 target=${2:-}
 
@@ -11,8 +12,8 @@ if [ -z "$bundle" ] || [ -z "$target" ]; then
 	echo "usage: $0 BUNDLE_DIR ROOTFS_DIR" >&2
 	exit 2
 fi
-bundle=$(CDPATH= cd -- "$bundle" && pwd)
-target=$(CDPATH= cd -- "$target" && pwd)
+bundle=$(cd -- "$bundle" && pwd)
+target=$(cd -- "$target" && pwd)
 
 for file in VERSION bin/hexagonrpcd lib/libhexagonrpc.so.0.5 \
 	root/sensors/sns_reg.conf; do
@@ -26,7 +27,7 @@ if [ -f "$bundle/SHA256SUMS" ]; then
 		echo "cannot verify SSC bundle: sha256sum is unavailable" >&2
 		exit 1
 	}
-	if ! (CDPATH= cd -- "$bundle" && sha256sum -c SHA256SUMS >/dev/null); then
+	if ! (cd -- "$bundle" && sha256sum -c SHA256SUMS >/dev/null); then
 		echo "SSC bundle integrity check failed: $bundle" >&2
 		exit 1
 	fi

@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
 set -eu
+CDPATH=
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 target=${1:-}
 archive=${2:-"$project_dir/downloads/ArchLinuxARM-aarch64-latest.tar.gz"}
 mirror=${ARCHLINUXARM_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm}
@@ -62,7 +63,7 @@ if [ ! -d "$target" ]; then
 	exit 1
 fi
 
-target=$(CDPATH= cd -- "$target" && pwd)
+target=$(cd -- "$target" && pwd)
 case "$target" in
 	/|/boot|/home|/usr|/var)
 		echo "refusing unsafe target: $target" >&2

@@ -2,14 +2,15 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
 set -eu
+CDPATH=
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 target=${1:-}
 if [ -z "$target" ] || [ ! -d "$target" ]; then
 	echo "usage: $0 ROOTFS_DIR" >&2
 	exit 2
 fi
-target=$(CDPATH= cd -- "$target" && pwd)
+target=$(cd -- "$target" && pwd)
 
 required_paths='etc/NetworkManager/conf.d/20-caihong-hardware-mac.conf
 etc/NetworkManager/conf.d/30-caihong-hotspot.conf
