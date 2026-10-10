@@ -14,13 +14,29 @@ Usage:
   caihong-slot linux [--reboot]
   caihong-slot a|b [--reboot]
 
-Slot mapping for this installation:
-  a / android  Android
-  b / linux    Caihong Linux
+The semantic names are resolved from the slot running this Linux system:
+  linux    current boot slot
+  android  other boot slot
+
+Use a or b to select an explicit slot without applying that mapping.
 
 Switching changes the slot selected for the next boot. It does not write a
 boot image or mark either slot successful.
 EOF
+}
+
+current_slot()
+{
+	current=$(
+		"$qbootctl" -c 2>/dev/null |
+			awk '$1 == "Current" && $2 == "slot:" { print $3; exit }'
+	) || true
+
+	case "$current" in
+		_a) printf '%s\n' a ;;
+		_b) printf '%s\n' b ;;
+		*) return 1 ;;
+	esac
 }
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -35,6 +51,7 @@ fi
 
 command=${1:-status}
 reboot_after=0
+running_slot=$(current_slot || true)
 
 case ${2:-} in
 	"") ;;
@@ -53,19 +70,46 @@ case "$command" in
 			usage >&2
 			exit 2
 		fi
-		echo "Slot mapping: _a=Android, _b=Caihong Linux"
+		case "$running_slot" in
+			a) echo "Detected mapping: _a=Caihong Linux, _b=Android" ;;
+			b) echo "Detected mapping: _b=Caihong Linux, _a=Android" ;;
+			*) echo "Detected mapping: unavailable; use explicit a or b" ;;
+		esac
 		"$qbootctl" 2>/dev/null
 		exit 0
 		;;
-	a|android)
-		target=a
-		expected=_a
+	android)
+		case "$running_slot" in
+			a) target=b ;;
+			b) target=a ;;
+			*)
+				echo "unable to identify the running Linux slot; use explicit a or b" >&2
+				exit 1
+				;;
+		esac
+		expected=_$target
 		label=Android
 		;;
-	b|linux)
+	linux)
+		case "$running_slot" in
+			a|b) target=$running_slot ;;
+			*)
+				echo "unable to identify the running Linux slot; use explicit a or b" >&2
+				exit 1
+				;;
+		esac
+		expected=_$target
+		label="Caihong Linux"
+		;;
+	a)
+		target=a
+		expected=_a
+		label="slot A"
+		;;
+	b)
 		target=b
 		expected=_b
-		label="Caihong Linux"
+		label="slot B"
 		;;
 	-h|--help|help)
 		usage

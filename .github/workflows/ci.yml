@@ -24,6 +24,7 @@ jobs:
             scripts/install-caihong-modules.sh \
             rootfs/archlinuxarm/usr/local/sbin/caihong-bluetooth-autostart \
             rootfs/archlinuxarm/usr/local/sbin/caihong-hardware-mac \
+            rootfs/archlinuxarm/usr/local/sbin/caihong-slot \
             scripts/ssc/install-rootfs.sh
           desktop-file-validate \
             rootfs/archlinuxarm/usr/share/applications/caihong-switch-to-android.desktop
