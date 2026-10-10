@@ -32,7 +32,7 @@ wait_for_bluetooth_address()
 	while (( attempts > 0 )); do
 		address=$(bluetooth_address || true)
 		if [[ $address =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] &&
-			{ [[ -z $expected ]] || [[ ${address,,} == ${expected,,} ]]; }; then
+			{ [[ -z $expected ]] || [[ ${address,,} == "${expected,,}" ]]; }; then
 			printf '%s\n' "$address"
 			return 0
 		fi
@@ -103,7 +103,7 @@ if ! wifi_interface=$(find_wifi_interface); then
 fi
 
 current_wlan=$(cat "/sys/class/net/$wifi_interface/address")
-if [[ ${current_wlan,,} != ${wlan_mac,,} ]]; then
+if [[ ${current_wlan,,} != "${wlan_mac,,}" ]]; then
 	was_up=0
 	if ip link show dev "$wifi_interface" | grep -q '<[^>]*UP[,>]'; then
 		was_up=1
@@ -122,7 +122,7 @@ fi
 if [[ $current_bluetooth == unconfigured ]]; then
 	btmgmt --index hci0 public-addr "$bluetooth_mac"
 	current_bluetooth=$(wait_for_bluetooth_address "$bluetooth_mac")
-elif [[ ${current_bluetooth,,} != ${bluetooth_mac,,} ]]; then
+elif [[ ${current_bluetooth,,} != "${bluetooth_mac,,}" ]]; then
 	was_powered=0
 	if btmgmt --index hci0 info | grep -q 'current settings:.* powered'; then
 		was_powered=1
