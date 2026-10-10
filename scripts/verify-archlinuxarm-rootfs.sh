@@ -15,6 +15,7 @@ target=$(cd -- "$target" && pwd)
 required_paths='etc/NetworkManager/conf.d/20-caihong-hardware-mac.conf
 etc/NetworkManager/conf.d/30-caihong-hotspot.conf
 etc/bluetooth/main.conf
+etc/locale.conf
 etc/xdg/bluedevilglobalrc
 etc/caihong-hotspot.conf
 etc/caihong-pen.json
@@ -202,6 +203,14 @@ if ! grep -qx 'alarm ALL=(ALL:ALL) ALL' "$target/etc/sudoers.d/10-alarm"; then
 fi
 if [ "$(stat -c '%a' "$target/etc/sudoers.d/10-alarm")" != 440 ]; then
 	echo "alarm sudo policy must have mode 0440" >&2
+	failed=1
+fi
+if ! grep -qx 'LANG=en_US.UTF-8' "$target/etc/locale.conf"; then
+	echo "default rootfs locale must be en_US.UTF-8" >&2
+	failed=1
+fi
+if ! grep -qx 'en_US.UTF-8 UTF-8' "$target/etc/locale.gen"; then
+	echo "en_US.UTF-8 locale generation is not enabled" >&2
 	failed=1
 fi
 if ! grep -qx \

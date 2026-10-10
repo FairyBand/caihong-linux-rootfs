@@ -299,11 +299,21 @@ unmount_image()
 
 unmount_rootfs()
 {
-	if (( rootfs_mounted )) && mountpoint -q "$rootfs"; then
-		# This mount tree lives in a private user/mount namespace. Detaching the
-		# top-level self-bind also detaches all imported API children without
-		# walking stale autofs/debugfs entries one by one.
-		umount --lazy "$rootfs" || true
+	if (( rootfs_mounted )); then
+		# Only these private, non-recursive API mounts are created below. Detach
+		# them explicitly before the self-bind so cleanup never descends into a
+		# mounted host API filesystem.
+		for api_directory in run sys proc dev; do
+			if mountpoint -q "$rootfs/$api_directory"; then
+				umount --lazy "$rootfs/$api_directory" || return 1
+			fi
+		done
+		if mountpoint -q "$rootfs"; then
+			umount --lazy "$rootfs" || return 1
+		fi
+		for api_directory in run sys proc dev; do
+			mountpoint -q "$rootfs/$api_directory" && return 1
+		done
 		mountpoint -q "$rootfs" && return 1
 	fi
 	rootfs_mounted=0
@@ -374,14 +384,17 @@ fi
 rm -f -- "$rootfs/etc/resolv.conf"
 cp -L -- /etc/resolv.conf "$rootfs/etc/resolv.conf"
 
-# A self bind mount gives both arch-chroot and the rootless plain-chroot mode a
-# private mount tree. cleanup() recursively unmounts its API filesystem mounts.
+# A self bind mount anchors the API filesystems below the temporary rootfs.
+# Use non-recursive binds: package construction needs the main /dev, /proc and
+# /sys filesystems, but importing host submounts such as binfmt_misc makes the
+# temporary tree difficult to unmount reliably.
 mount --bind "$rootfs" "$rootfs"
 rootfs_mounted=1
+mount --make-private "$rootfs"
 if [[ $chroot_tool == chroot ]]; then
 	for api_directory in dev proc sys; do
-		mount --rbind "/$api_directory" "$rootfs/$api_directory"
-		mount --make-rslave "$rootfs/$api_directory"
+		mount --bind "/$api_directory" "$rootfs/$api_directory"
+		mount --make-private "$rootfs/$api_directory"
 	done
 	# Do not import the user's /run tree into a rootless build. In particular,
 	# xdg-document-portal's FUSE mount cannot be recursively unmounted from the
@@ -481,13 +494,13 @@ chmod 0440 "$rootfs/etc/sudoers.d/10-alarm"
 rm -f -- \
 	"$rootfs/usr/lib/qt6/plugins/powerdevil/action/powerdevil_keyboardbrightnesscontrolaction.so"
 
-echo "configuring the Chinese locale and Asia/Shanghai timezone"
-sed -i 's/^#zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' "$rootfs/etc/locale.gen"
-if ! grep -qx 'zh_CN.UTF-8 UTF-8' "$rootfs/etc/locale.gen"; then
-	printf 'zh_CN.UTF-8 UTF-8\n' >> "$rootfs/etc/locale.gen"
+echo "configuring the English (United States) locale and Asia/Shanghai timezone"
+sed -i 's/^#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' "$rootfs/etc/locale.gen"
+if ! grep -qx 'en_US.UTF-8 UTF-8' "$rootfs/etc/locale.gen"; then
+	printf 'en_US.UTF-8 UTF-8\n' >> "$rootfs/etc/locale.gen"
 fi
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" locale-gen
-printf 'LANG=zh_CN.UTF-8\n' > "$rootfs/etc/locale.conf"
+printf 'LANG=en_US.UTF-8\n' > "$rootfs/etc/locale.conf"
 ln -sfn /usr/share/zoneinfo/Asia/Shanghai "$rootfs/etc/localtime"
 
 for package in "${unwanted_boot_packages[@]}"; do
@@ -546,7 +559,7 @@ rsync -a --exclude=.git --exclude=build \
 	"$project_dir/external/qbootctl/" "$rootfs/tmp/qbootctl/"
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" \
 	meson setup /tmp/qbootctl/build /tmp/qbootctl \
-	--buildtype=release --prefix=/usr/local
+	--buildtype=release --prefix=/usr/local --bindir=sbin
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" \
 	meson compile -C /tmp/qbootctl/build
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" \
