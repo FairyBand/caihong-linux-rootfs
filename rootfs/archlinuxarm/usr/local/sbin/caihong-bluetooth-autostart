@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+set -eu
+
+attempt=1
+while [ "$attempt" -le 6 ]; do
+	state=$(bluetoothctl show 2>/dev/null || true)
+	if printf '%s\n' "$state" | grep -q '^[[:space:]]*Powered: yes$'; then
+		echo "Bluetooth controller is powered"
+		exit 0
+	fi
+
+	timeout 5 bluetoothctl power on >/dev/null 2>&1 || true
+	sleep 1
+	attempt=$((attempt + 1))
+done
+
+echo "Bluetooth controller did not power on" >&2
+exit 1

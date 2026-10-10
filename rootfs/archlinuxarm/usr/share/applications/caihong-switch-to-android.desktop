@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+
+[Desktop Entry]
+Type=Application
+Name=切换到 Android
+Name[en]=Switch to Android
+Comment=将下一次启动切换到 Android A 槽并重启
+Comment[en]=Select the Android A slot and reboot
+Exec=/usr/bin/pkexec /usr/local/sbin/caihong-slot android --reboot
+Icon=system-reboot
+Terminal=false
+Categories=System;
+Keywords=Android;boot;slot;reboot;
+StartupNotify=false

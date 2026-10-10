@@ -14,12 +14,14 @@ target=$(cd -- "$target" && pwd)
 
 required_paths='etc/NetworkManager/conf.d/20-caihong-hardware-mac.conf
 etc/NetworkManager/conf.d/30-caihong-hotspot.conf
+etc/bluetooth/main.conf
 etc/caihong-hotspot.conf
 etc/caihong-pen.json
 etc/modules-load.d/caihong.conf
 etc/systemd/system/caihong-grow-rootfs.service
 etc/systemd/system/caihong-fix-kwin-brightness.service
 etc/systemd/system/caihong-clean-pogo-kde.service
+etc/systemd/system/caihong-bluetooth-autostart.service
 etc/systemd/system/caihong-hardware-mac.service
 etc/systemd/system/caihong-hotspot.service
 etc/systemd/system/caihong-mark-boot-successful.service
@@ -32,6 +34,7 @@ etc/systemd/system/caihong-pen-pair.timer
 etc/systemd/system/bluetooth.target.wants/bluetooth.service
 etc/systemd/system/display-manager.service
 etc/systemd/system/multi-user.target.wants/NetworkManager.service
+etc/systemd/system/multi-user.target.wants/caihong-bluetooth-autostart.service
 etc/systemd/system/multi-user.target.wants/caihong-hardware-mac.service
 etc/systemd/system/multi-user.target.wants/caihong-mark-boot-successful.service
 etc/systemd/system/graphical.target.wants/caihong-clean-pogo-kde.service
@@ -41,6 +44,7 @@ etc/systemd/system/timers.target.wants/caihong-pen-autoconnect.timer
 etc/systemd/system/timers.target.wants/caihong-pen-charge.timer
 etc/systemd/system/timers.target.wants/caihong-pen-pair.timer
 usr/local/libexec/caihong-nvram-mac
+usr/local/sbin/caihong-bluetooth-autostart
 usr/local/sbin/caihong-hardware-mac
 usr/local/sbin/caihong-hotspot
 usr/local/sbin/caihong-flashlight
@@ -52,6 +56,7 @@ usr/local/sbin/caihong-pen-charge
 usr/local/sbin/caihong-pen-pair
 usr/local/sbin/caihong-slot
 usr/local/sbin/qbootctl
+usr/share/applications/caihong-switch-to-android.desktop
 usr/bin/cam
 usr/bin/plasma-camera
 usr/bin/qcam
@@ -105,7 +110,7 @@ else
 		fi
 	done
 	for module in oneplus_pogo nt36532e_ts sc8547_cp caihong_pen_power \
-		system_heap cma_heap sc820cs sc1320cs gt9772 ath12k_wifi7 \
+		bnep system_heap cma_heap sc820cs sc1320cs gt9772 ath12k_wifi7 \
 		qcom_q6v5_pas; do
 		module_file=$(find "$module_dir" -type f -name "$module.ko" -print -quit)
 		if [ -z "$module_file" ]; then
@@ -149,6 +154,17 @@ for path in $required_paths; do
 		failed=1
 	fi
 done
+
+if ! grep -qx 'AutoEnable=true' "$target/etc/bluetooth/main.conf"; then
+	echo "BlueZ controller auto-enable policy is missing" >&2
+	failed=1
+fi
+if ! grep -qx \
+	'Exec=/usr/bin/pkexec /usr/local/sbin/caihong-slot android --reboot' \
+	"$target/usr/share/applications/caihong-switch-to-android.desktop"; then
+	echo "Caihong Android slot desktop action is incorrect" >&2
+	failed=1
+fi
 
 # The downstream HMT 2.0 payload starts far enough to announce its version,
 # but never reaches WMI ready with the ath12k_wifi7 baseline used here.  Verify

@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+
+[Unit]
+Description=Power on the Caihong Bluetooth controller
+Wants=bluetooth.service
+After=bluetooth.service caihong-hardware-mac.service
+StartLimitIntervalSec=300s
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/caihong-bluetooth-autostart
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=45s
+
+[Install]
+WantedBy=multi-user.target

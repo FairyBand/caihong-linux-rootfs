@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install validation tools
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+        run: sudo apt-get update && sudo apt-get install -y desktop-file-utils shellcheck
       - name: Validate scripts
         run: |
           set -euo pipefail
@@ -22,8 +22,11 @@ jobs:
             scripts/build-kernel-release.sh \
             scripts/checkout-dependencies.sh \
             scripts/install-caihong-modules.sh \
+            rootfs/archlinuxarm/usr/local/sbin/caihong-bluetooth-autostart \
             rootfs/archlinuxarm/usr/local/sbin/caihong-hardware-mac \
             scripts/ssc/install-rootfs.sh
+          desktop-file-validate \
+            rootfs/archlinuxarm/usr/share/applications/caihong-switch-to-android.desktop
       - name: Reject oversized repository objects
         run: |
           set -euo pipefail
