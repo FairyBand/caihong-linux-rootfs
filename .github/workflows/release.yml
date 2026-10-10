@@ -73,8 +73,7 @@ jobs:
       - name: Build direct-root kernel and boot image
         run: |
           jobs=$(nproc)
-          if (( jobs > 1 )); then ((jobs -= 1)); fi
-          JOBS=$jobs FORCE=1 \
+          JOBS=$jobs ZSTD_THREADS=$jobs FORCE=1 \
             KERNEL_CC="ccache gcc" KERNEL_HOSTCC="ccache gcc" \
             scripts/build-kernel-release.sh
 
@@ -93,14 +92,18 @@ jobs:
 
       - name: Build matching Arch Linux ARM rootfs
         run: |
+          jobs=$(nproc)
           kernel_release=$(cat release/KERNEL_RELEASE)
           sudo -E env \
             CHROOT_TOOL=chroot \
             KERNEL_PACKAGE="$PWD/release/$(cat release/LINUX_CAIHONG_PACKAGE)" \
+            LIBCAMERA_BUILD_JOBS="$jobs" \
             MODULE_TREE="$PWD/modules-current" \
             OUTPUT_FORMAT=tar \
+            PLASMA_CAMERA_BUILD_JOBS="$jobs" \
             USE_PROXY=0 \
             ZSTD_LEVEL=15 \
+            ZSTD_THREADS="$jobs" \
             scripts/package-archlinuxarm-rootfs.sh \
             "release/caihong-rootfs-$kernel_release.tar.zst"
           sudo chown -R "$USER:$USER" release build/pacman-cache downloads
