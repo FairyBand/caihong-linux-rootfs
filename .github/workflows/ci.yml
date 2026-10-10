@@ -22,6 +22,7 @@ jobs:
             scripts/build-kernel-release.sh \
             scripts/checkout-dependencies.sh \
             scripts/install-caihong-modules.sh \
+            rootfs/archlinuxarm/usr/local/sbin/caihong-hardware-mac \
             scripts/ssc/install-rootfs.sh
       - name: Reject oversized repository objects
         run: |

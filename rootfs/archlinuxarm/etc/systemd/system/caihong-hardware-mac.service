@@ -1,12 +1,13 @@
 [Unit]
 Description=Load Caihong WLAN and Bluetooth hardware addresses
-After=systemd-udevd.service
-Before=NetworkManager.service bluetooth.service
+Wants=bluetooth.service
+After=systemd-udevd.service systemd-modules-load.service bluetooth.service
+Before=NetworkManager.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/caihong-hardware-mac
-TimeoutStartSec=40
+TimeoutStartSec=60
 RemainAfterExit=yes
 
 [Install]

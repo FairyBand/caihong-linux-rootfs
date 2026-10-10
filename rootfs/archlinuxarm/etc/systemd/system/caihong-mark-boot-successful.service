@@ -1,7 +1,7 @@
 [Unit]
 Description=Mark the current Caihong A/B boot slot successful
 After=local-fs.target
-ConditionPathIsExecutable=/usr/local/sbin/qbootctl
+ConditionFileIsExecutable=/usr/local/sbin/qbootctl
 
 [Service]
 Type=oneshot

@@ -23,6 +23,65 @@ bluetooth_address()
 		awk '/^[[:space:]]*addr / { print tolower($2); exit }'
 }
 
+wait_for_bluetooth_address()
+{
+	local expected=${1:-}
+	local attempts=300
+	local address
+
+	while (( attempts > 0 )); do
+		address=$(bluetooth_address || true)
+		if [[ $address =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] &&
+			{ [[ -z $expected ]] || [[ ${address,,} == ${expected,,} ]]; }; then
+			printf '%s\n' "$address"
+			return 0
+		fi
+		sleep 0.1
+		((attempts--))
+	done
+	return 1
+}
+
+wait_for_bluetooth_state()
+{
+	local attempts=300
+	local address
+
+	while (( attempts > 0 )); do
+		address=$(bluetooth_address || true)
+		if [[ $address =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]]; then
+			printf '%s\n' "$address"
+			return 0
+		fi
+		if btmgmt config 2>/dev/null |
+			grep -q '^hci0:[[:space:]]*Unconfigured controller'; then
+			printf '%s\n' unconfigured
+			return 0
+		fi
+		sleep 0.1
+		((attempts--))
+	done
+	return 1
+}
+
+find_wifi_interface()
+{
+	local attempts=300
+	local interface phy
+
+	while (( attempts > 0 )); do
+		for phy in /sys/class/net/*/phy80211; do
+			[[ -e $phy ]] || continue
+			interface=${phy%/phy80211}
+			printf '%s\n' "${interface##*/}"
+			return 0
+		done
+		sleep 0.1
+		((attempts--))
+	done
+	return 1
+}
+
 wait_for_path /dev/disk/by-partlabel/nonmodemst1
 wait_for_path /dev/disk/by-partlabel/nonmodemst2
 
@@ -38,14 +97,7 @@ done <<< "$mac_values"
 [[ ${bluetooth_mac:-} =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]]
 [[ $wlan_mac != "$bluetooth_mac" ]]
 
-wifi_interface=
-for phy in /sys/class/net/*/phy80211; do
-	[[ -e $phy ]] || continue
-	wifi_interface=${phy%/phy80211}
-	wifi_interface=${wifi_interface##*/}
-	break
-done
-if [[ -z $wifi_interface ]]; then
+if ! wifi_interface=$(find_wifi_interface); then
 	echo "no WLAN interface found" >&2
 	exit 1
 fi
@@ -63,21 +115,21 @@ if [[ ${current_wlan,,} != ${wlan_mac,,} ]]; then
 	fi
 fi
 
-wait_for_path /sys/class/bluetooth/hci0
-current_bluetooth=$(bluetooth_address)
-if [[ ${current_bluetooth,,} != ${bluetooth_mac,,} ]]; then
+if ! current_bluetooth=$(wait_for_bluetooth_state); then
+	echo "Bluetooth controller did not become ready" >&2
+	exit 1
+fi
+if [[ $current_bluetooth == unconfigured ]]; then
+	btmgmt --index hci0 public-addr "$bluetooth_mac"
+	current_bluetooth=$(wait_for_bluetooth_address "$bluetooth_mac")
+elif [[ ${current_bluetooth,,} != ${bluetooth_mac,,} ]]; then
 	was_powered=0
 	if btmgmt --index hci0 info | grep -q 'current settings:.* powered'; then
 		was_powered=1
 	fi
 	btmgmt --index hci0 power off
 	btmgmt --index hci0 public-addr "$bluetooth_mac"
-	for ((attempts = 100; attempts > 0; attempts--)); do
-		current_bluetooth=$(bluetooth_address || true)
-		[[ ${current_bluetooth,,} == ${bluetooth_mac,,} ]] && break
-		sleep 0.1
-	done
-	[[ ${current_bluetooth,,} == ${bluetooth_mac,,} ]]
+	current_bluetooth=$(wait_for_bluetooth_address "$bluetooth_mac")
 	if (( was_powered )); then
 		btmgmt --index hci0 power on
 	fi
