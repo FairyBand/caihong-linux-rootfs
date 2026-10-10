@@ -157,7 +157,8 @@ fi
 
 release=$(cat "$package_dir/kernel-release")
 
-if [ "${CAIHONG_SKIP_BOOT_FLASH:-0}" = 1 ]; then
+if [ "${CAIHONG_SKIP_BOOT_FLASH:-0}" = 1 ] || \
+	[ -e /run/caihong/offline-rootfs-build ]; then
 	activate_modules
 	echo "linux-caihong: skipped boot flash for offline rootfs construction"
 	exit 0

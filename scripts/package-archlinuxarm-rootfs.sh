@@ -543,9 +543,12 @@ rsync -a --exclude=SOURCE.md --exclude=SHA256SUMS \
 echo "installing linux-caihong pacman package"
 install -m 0644 "$kernel_package" "$rootfs/tmp/linux-caihong.pkg.tar.zst"
 rm -rf -- "$rootfs/usr/lib/modules"
+install -d -m 0755 "$rootfs/run/caihong"
+touch "$rootfs/run/caihong/offline-rootfs-build"
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" \
 	env CAIHONG_SKIP_BOOT_FLASH=1 \
 	pacman -U --noconfirm /tmp/linux-caihong.pkg.tar.zst
+rm -f -- "$rootfs/run/caihong/offline-rootfs-build"
 if ! "$chroot_tool" "$rootfs" "${chroot_env[@]}" \
 	pacman -Qq linux-caihong >/dev/null; then
 	echo "linux-caihong was not registered in the rootfs package database" >&2
