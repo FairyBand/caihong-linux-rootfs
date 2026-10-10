@@ -35,6 +35,8 @@ REQUIRED_MODULES = (
     "sc1320cs",
     "gt9772",
     "ath12k_wifi7",
+    "bnep",
+    "hidp",
     "qcom_q6v5_pas",
 )
 EARLY_FIRMWARE = (
@@ -110,6 +112,7 @@ def main() -> int:
     parser.add_argument("--module-tree", type=Path, required=True)
     parser.add_argument("--firmware-dir", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--root-partlabel", choices=("linux", "userdata"), required=True)
     args = parser.parse_args()
 
     image = args.image.read_bytes()
@@ -124,7 +127,18 @@ def main() -> int:
         raise VerificationError("boot DTB payload differs from the board DTB")
 
     tokens = set(str(parsed["cmdline"]).split())
-    for token in ("root=PARTLABEL=linux", "rootfstype=ext4", "rootwait", "rw"):
+    root_tokens = {token for token in tokens if token.startswith("root=")}
+    expected_root = f"root=PARTLABEL={args.root_partlabel}"
+    if root_tokens != {expected_root}:
+        raise VerificationError(
+            f"expected exactly {expected_root}, found {sorted(root_tokens)}"
+        )
+    for token in (
+        expected_root,
+        "rootfstype=ext4",
+        "rootwait",
+        "rw",
+    ):
         if token not in tokens:
             raise VerificationError(f"missing direct-root command-line token: {token}")
     if any(token.startswith("rdinit=") or token.startswith("root=LABEL=") for token in tokens):
@@ -172,6 +186,7 @@ def main() -> int:
         "boot_header_version": parsed["header_version"],
         "boot_page_size": parsed["page_size"],
         "external_ramdisk_bytes": parsed["ramdisk_size"],
+        "root_partlabel": args.root_partlabel,
         "cmdline": parsed["cmdline"],
         "config_sha256": digest(config_data),
         "early_builtin_firmware": firmware_hashes,

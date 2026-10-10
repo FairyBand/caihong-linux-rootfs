@@ -6,6 +6,7 @@
 /external/libcamera/
 /external/plasma-camera/
 /external/qbootctl/
+/external/mkbootimg/
 *.part
 *.tmp
 __pycache__/

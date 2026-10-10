@@ -9,14 +9,35 @@ output=${1:-"$project_dir/release/caihong-boot.img"}
 kernel=${2:-"$project_dir/linux/out/arch/arm64/boot/Image"}
 dtb=${3:-"$project_dir/linux/out/arch/arm64/boot/dts/qcom/sm8650-oneplus-caihong.dtb"}
 cmdline_file=${CMDLINE_FILE:-"$project_dir/caihong-direct-root-cmdline.txt"}
+root_partlabel=${ROOT_PARTLABEL:-linux}
 temporary="$output.new"
 
-for tool in mkbootimg sha256sum; do
+case "$root_partlabel" in
+	linux|userdata) ;;
+	*) echo "unsupported root partition label: $root_partlabel" >&2; exit 2 ;;
+esac
+
+for tool in python3 sha256sum; do
 	command -v "$tool" >/dev/null 2>&1 || {
 		echo "missing tool: $tool" >&2
 		exit 1
 	}
 done
+
+if [ -n "${MKBOOTIMG:-}" ]; then
+	[ -f "$MKBOOTIMG" ] || {
+		echo "missing mkbootimg source: $MKBOOTIMG" >&2
+		exit 1
+	}
+	mkbootimg=$MKBOOTIMG
+elif [ -f "$project_dir/external/mkbootimg/mkbootimg.py" ]; then
+	mkbootimg="$project_dir/external/mkbootimg/mkbootimg.py"
+elif command -v mkbootimg >/dev/null 2>&1; then
+	mkbootimg=$(command -v mkbootimg)
+else
+	echo "missing mkbootimg.py; run scripts/checkout-dependencies.sh" >&2
+	exit 1
+fi
 for file in "$kernel" "$dtb" "$cmdline_file"; do
 	[ -f "$file" ] || {
 		echo "missing input: $file" >&2
@@ -32,8 +53,8 @@ fi
 rm -f -- "$temporary"
 IFS= read -r cmdline < "$cmdline_file"
 case " $cmdline " in
-	*' root=PARTLABEL=linux '*) ;;
-	*) echo "direct-root command line is missing root=PARTLABEL=linux" >&2; exit 1 ;;
+	*" root=PARTLABEL=$root_partlabel "*) ;;
+	*) echo "direct-root command line is missing root=PARTLABEL=$root_partlabel" >&2; exit 1 ;;
 esac
 case " $cmdline " in
 	*' rdinit='*|*' root=LABEL='*)
@@ -50,7 +71,7 @@ trap cleanup EXIT HUP INT TERM
 
 # Android boot header v2 carries only Image and the dedicated DTB payload.
 # No --ramdisk argument is passed, so ramdisk_size is exactly zero.
-mkbootimg \
+python3 "$mkbootimg" \
 	--base 0x00000000 \
 	--kernel_offset 0x00008000 \
 	--ramdisk_offset 0x01000000 \

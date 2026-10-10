@@ -47,16 +47,25 @@ def main() -> int:
     rootfs = args.rootfs.resolve()
     assets = args.assets.resolve()
     kernel_release = (release_dir / "KERNEL_RELEASE").read_text().strip()
-    boot_manifest_path = release_dir / f"caihong-boot-{kernel_release}.img.json"
-    boot_manifest = json.loads(boot_manifest_path.read_text())
+    boot_manifests = {
+        root: json.loads(
+            (release_dir / f"caihong-boot-{root}-{kernel_release}.img.json").read_text()
+        )
+        for root in ("linux", "userdata")
+    }
+    for root, manifest in boot_manifests.items():
+        if manifest.get("root_partlabel") != root:
+            raise RuntimeError(f"boot manifest root mismatch for {root}")
 
     if assets.exists():
         shutil.rmtree(assets)
     assets.mkdir(parents=True)
     copied = []
     for name in (
-        f"caihong-boot-{kernel_release}.img",
-        f"caihong-boot-{kernel_release}.img.json",
+        f"caihong-boot-linux-{kernel_release}.img",
+        f"caihong-boot-linux-{kernel_release}.img.json",
+        f"caihong-boot-userdata-{kernel_release}.img",
+        f"caihong-boot-userdata-{kernel_release}.img.json",
         f"Image-{kernel_release}",
         f"sm8650-oneplus-caihong-{kernel_release}.dtb",
         f"config-{kernel_release}",
@@ -89,7 +98,7 @@ def main() -> int:
     manifest = {
         "device": "OnePlus Pad Pro (caihong)",
         "kernel_release": kernel_release,
-        "boot": boot_manifest,
+        "boot": boot_manifests,
         "rootfs": {
             "reconstructed_name": rootfs.name,
             "bytes": rootfs.stat().st_size,

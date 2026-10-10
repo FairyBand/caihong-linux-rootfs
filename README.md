@@ -5,13 +5,17 @@ boot image for the OnePlus Pad Pro (`caihong`).
 
 The first public release is pending final direct-root validation on hardware.
 
-The Android boot v2 image contains only the Linux `Image` and the Caihong DTB.
-Its external ramdisk size is zero. Linux mounts the existing GPT partition
-named `linux` directly with:
+Both Android boot v2 images contain only the Linux `Image` and the Caihong DTB.
+Their external ramdisk size is zero. The normal dual-boot image mounts the
+existing GPT partition named `linux` directly with:
 
 ```
 root=PARTLABEL=linux rootfstype=ext4 rootwait rw
 ```
+
+The single-system image instead uses `root=PARTLABEL=userdata`. This variant
+is intended for installations that replace Android user data with the Linux
+root filesystem.
 
 All loadable drivers, firmware and device userspace live in the rootfs. The
 build follows the stable component branches in `dependencies.env`, records
@@ -20,7 +24,10 @@ whose kernel release does not match the boot image.
 
 ## Release contents
 
-- `caihong-boot-<kernel-release>.img`: unsigned Android boot v2 image.
+- `caihong-boot-linux-<kernel-release>.img`: dual-boot image using the `linux`
+  root partition.
+- `caihong-boot-userdata-<kernel-release>.img`: single-system image using the
+  `userdata` root partition.
 - `caihong-rootfs-<kernel-release>.tar.zst`: rootfs archive. Archives at or
   above 2 GiB are published as ordered `.part-00`, `.part-01`, … files.
 - `release-manifest.json`: source revisions, sizes and SHA-256 digests.
@@ -32,15 +39,16 @@ Reconstruct a split rootfs before extraction:
 cat caihong-rootfs-*.tar.zst.part-* > caihong-rootfs.tar.zst
 ```
 
-The target GPT partition must be named `linux` and formatted as ext4. Extract
-the archive as root so numeric ownership, ACLs and extended attributes are
-preserved. Flash the boot image only to the selected boot slot; the project
-uses `boot_b` during development and leaves `boot_a` untouched.
+Format the root partition selected by the boot image as ext4 and extract the
+archive as root so numeric ownership, ACLs and extended attributes are
+preserved. Flash the matching boot image only to the selected boot slot; the
+project uses `boot_b` during development and leaves `boot_a` untouched.
 
 ## Building locally
 
-Install an AArch64 cross compiler, `mkbootimg`, QEMU user emulation, bsdtar,
-zstd, kmod and alsa-utils. Then run:
+Install an AArch64 cross compiler, Python 3, QEMU user emulation, bsdtar, zstd,
+kmod and alsa-utils. The dependency checkout supplies AOSP `mkbootimg.py`.
+Then run:
 
 ```sh
 scripts/checkout-dependencies.sh

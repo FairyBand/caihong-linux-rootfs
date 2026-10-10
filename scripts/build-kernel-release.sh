@@ -55,24 +55,33 @@ kernel_release=$(make -s -C "$linux_dir" O="$kernel_out" ARCH=arm64 \
 	CROSS_COMPILE="$cross_compile" kernelrelease)
 image="$kernel_out/arch/arm64/boot/Image"
 dtb="$kernel_out/arch/arm64/boot/dts/qcom/sm8650-oneplus-caihong.dtb"
-boot_image="$release_dir/caihong-boot-$kernel_release.img"
-manifest="$boot_image.json"
+for root_partlabel in linux userdata; do
+	boot_image="$release_dir/caihong-boot-$root_partlabel-$kernel_release.img"
+	manifest="$boot_image.json"
+	case "$root_partlabel" in
+		linux) cmdline_file="$project_dir/caihong-direct-root-cmdline.txt" ;;
+		userdata) cmdline_file="$project_dir/caihong-direct-root-userdata-cmdline.txt" ;;
+	esac
 
-FORCE=${FORCE:-0} CMDLINE_FILE="$project_dir/caihong-direct-root-cmdline.txt" \
-	"$project_dir/scripts/build-boot-v2.sh" "$boot_image" "$image" "$dtb"
-"$project_dir/scripts/verify-caihong-release.py" "$boot_image" \
-	--kernel "$image" \
-	--dtb "$dtb" \
-	--config "$kernel_out/.config" \
-	--module-tree "$module_tree" \
-	--firmware-dir "$firmware_dir" \
-	--manifest "$manifest"
+	FORCE=${FORCE:-0} ROOT_PARTLABEL=$root_partlabel \
+		CMDLINE_FILE="$cmdline_file" \
+		"$project_dir/scripts/build-boot-v2.sh" "$boot_image" "$image" "$dtb"
+	"$project_dir/scripts/verify-caihong-release.py" "$boot_image" \
+		--kernel "$image" \
+		--dtb "$dtb" \
+		--config "$kernel_out/.config" \
+		--module-tree "$module_tree" \
+		--firmware-dir "$firmware_dir" \
+		--root-partlabel "$root_partlabel" \
+		--manifest "$manifest"
+done
 
 install -m 0644 "$image" "$release_dir/Image-$kernel_release"
 install -m 0644 "$dtb" "$release_dir/sm8650-oneplus-caihong-$kernel_release.dtb"
 install -m 0644 "$kernel_out/.config" "$release_dir/config-$kernel_release"
 printf '%s\n' "$kernel_release" > "$release_dir/KERNEL_RELEASE"
-sha256sum "$release_dir"/caihong-boot-"$kernel_release".img \
+sha256sum "$release_dir"/caihong-boot-linux-"$kernel_release".img \
+	"$release_dir"/caihong-boot-userdata-"$kernel_release".img \
 	"$release_dir"/Image-"$kernel_release" \
 	"$release_dir"/sm8650-oneplus-caihong-"$kernel_release".dtb \
 	> "$release_dir/SHA256SUMS.boot"

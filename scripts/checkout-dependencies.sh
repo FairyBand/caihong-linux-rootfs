@@ -55,5 +55,7 @@ checkout PLASMA_CAMERA "$PLASMA_CAMERA_REF" \
 	"$project_dir/external/plasma-camera" "$PLASMA_CAMERA_REPOSITORY"
 checkout QBOOTCTL "$QBOOTCTL_REF" \
 	"$project_dir/external/qbootctl" "$QBOOTCTL_REPOSITORY"
+checkout MKBOOTIMG "$MKBOOTIMG_REF" \
+	"$project_dir/external/mkbootimg" "$MKBOOTIMG_REPOSITORY"
 echo "checked out Caihong release dependencies"
 cat "$resolved"

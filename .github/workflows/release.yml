@@ -36,7 +36,7 @@ jobs:
           sudo apt-get install -y \
             alsa-utils bc binfmt-support bison build-essential curl dwarves \
             flex gcc-aarch64-linux-gnu git kmod libarchive-tools libelf-dev \
-            libssl-dev mkbootimg qemu-user-static rsync shellcheck zstd
+            libssl-dev python3 qemu-user-static rsync shellcheck zstd
           sudo systemctl restart systemd-binfmt || true
 
       - name: Restore package downloads
