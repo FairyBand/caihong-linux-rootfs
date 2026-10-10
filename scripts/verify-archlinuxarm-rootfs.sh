@@ -19,6 +19,7 @@ etc/xdg/bluedevilglobalrc
 etc/caihong-hotspot.conf
 etc/caihong-pen.json
 etc/modules-load.d/caihong.conf
+etc/sudoers.d/10-alarm
 etc/systemd/system/caihong-grow-rootfs.service
 etc/systemd/system/caihong-fix-kwin-brightness.service
 etc/systemd/system/caihong-clean-pogo-kde.service
@@ -162,6 +163,14 @@ if ! grep -qx 'AutoEnable=true' "$target/etc/bluetooth/main.conf"; then
 fi
 if ! grep -qx 'launchState=enable' "$target/etc/xdg/bluedevilglobalrc"; then
 	echo "BlueDevil login policy does not enable Bluetooth" >&2
+	failed=1
+fi
+if ! grep -qx 'alarm ALL=(ALL:ALL) ALL' "$target/etc/sudoers.d/10-alarm"; then
+	echo "alarm sudo policy is missing" >&2
+	failed=1
+fi
+if [ "$(stat -c '%a' "$target/etc/sudoers.d/10-alarm")" != 440 ]; then
+	echo "alarm sudo policy must have mode 0440" >&2
 	failed=1
 fi
 if ! grep -qx \

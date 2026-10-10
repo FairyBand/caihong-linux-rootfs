@@ -65,6 +65,7 @@ packages=(
 	python-ply
 	python-yaml
 	rsync
+	sudo
 	cmake
 	extra-cmake-modules
 	meson
@@ -436,7 +437,9 @@ systemctl --root="$rootfs" enable caihong-fix-kwin-brightness.service
 systemctl --root="$rootfs" enable caihong-clean-pogo-kde.service
 systemctl --root="$rootfs" enable caihong-bluetooth-autostart.service
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" \
-	usermod -aG audio,input,video alarm
+	usermod -aG audio,input,video,wheel alarm
+chmod 0440 "$rootfs/etc/sudoers.d/10-alarm"
+"$chroot_tool" "$rootfs" "${chroot_env[@]}" visudo -cf /etc/sudoers
 
 # The Pogo keyboard has no backlight.  Remove the generic PowerDevil action so
 # Plasma cannot present a non-functional keyboard-brightness control even if
@@ -555,7 +558,7 @@ unmount_rootfs
 {
 	printf 'device=caihong\n'
 	printf 'architecture=aarch64\n'
-	printf 'root=PARTLABEL=linux\n'
+	printf 'boot_roots=PARTLABEL=linux,PARTLABEL=userdata\n'
 	printf 'boot_kernel=android-boot-v2-direct-root\n'
 	printf 'package_mirror=%s\n' "$mirror"
 	printf 'kernel_release=%s\n' "$kernel_release"
