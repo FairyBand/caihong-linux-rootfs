@@ -1,0 +1,21 @@
+[Unit]
+Description=Caihong concurrent Wi-Fi hotspot
+Wants=NetworkManager.service NetworkManager-wait-online.service
+After=NetworkManager.service NetworkManager-wait-online.service
+Conflicts=sleep.target
+Before=sleep.target
+ConditionPathExists=/usr/local/sbin/caihong-hotspot
+ConditionPathExists=/usr/bin/hostapd
+ConditionPathExists=/usr/bin/dnsmasq
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/caihong-hotspot start
+ExecStop=/usr/local/sbin/caihong-hotspot stop
+ExecReload=/usr/local/sbin/caihong-hotspot restart
+TimeoutStartSec=55
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

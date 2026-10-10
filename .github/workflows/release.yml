@@ -1,0 +1,97 @@
+name: Build and publish Caihong Linux
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to create or update
+        required: true
+        default: v0.1.0
+
+permissions:
+  contents: write
+
+concurrency:
+  group: caihong-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            alsa-utils bc binfmt-support bison build-essential curl dwarves \
+            flex gcc-aarch64-linux-gnu git kmod libarchive-tools libelf-dev \
+            libssl-dev mkbootimg qemu-user-static rsync shellcheck zstd
+          sudo systemctl restart systemd-binfmt || true
+
+      - name: Restore package downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            downloads
+            build/pacman-cache
+          key: archlinuxarm-${{ runner.os }}-${{ hashFiles('dependencies.env', 'scripts/package-archlinuxarm-rootfs.sh') }}
+          restore-keys: archlinuxarm-${{ runner.os }}-
+
+      - name: Resolve component branches
+        run: scripts/checkout-dependencies.sh
+
+      - name: Build direct-root kernel and boot image
+        run: |
+          jobs=$(nproc)
+          if (( jobs > 1 )); then ((jobs -= 1)); fi
+          JOBS=$jobs FORCE=1 scripts/build-kernel-release.sh
+
+      - name: Free kernel build space
+        run: rm -rf linux build/linux
+
+      - name: Build matching Arch Linux ARM rootfs
+        run: |
+          kernel_release=$(cat release/KERNEL_RELEASE)
+          sudo -E env \
+            CHROOT_TOOL=chroot \
+            MODULE_TREE="$PWD/modules-current" \
+            OUTPUT_FORMAT=tar \
+            USE_PROXY=0 \
+            ZSTD_LEVEL=15 \
+            scripts/package-archlinuxarm-rootfs.sh \
+            "release/caihong-rootfs-$kernel_release.tar.zst"
+          sudo chown -R "$USER:$USER" release build/pacman-cache downloads
+
+      - name: Prepare release assets
+        run: |
+          kernel_release=$(cat release/KERNEL_RELEASE)
+          scripts/prepare-release-assets.py \
+            --release-dir release \
+            --rootfs "release/caihong-rootfs-$kernel_release.tar.zst" \
+            --dependencies build/dependencies.resolved.env \
+            --assets release/assets
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [[ $GITHUB_REF_TYPE == tag ]]; then
+            tag=$GITHUB_REF_NAME
+          else
+            tag=$INPUT_TAG
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release/assets/* --clobber
+          else
+            gh release create "$tag" release/assets/* \
+              --title "Caihong Linux $tag" \
+              --generate-notes
+          fi

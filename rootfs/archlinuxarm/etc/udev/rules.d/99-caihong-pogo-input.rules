@@ -1,0 +1,3 @@
+# The Pogo touch surface is an external accessory.  Do not let a key event
+# from its companion keyboard trigger libinput's disable-while-typing timer.
+ACTION=="add|change", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="OnePlus Pogo Touchpad", ENV{ID_INPUT_TOUCHPAD_INTEGRATION}="external", ENV{LIBINPUT_ATTR_DISABLE_WHILE_TYPING}="0"

@@ -1,0 +1,50 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+set -eu
+
+qbootctl=/usr/local/sbin/qbootctl
+
+if [ "$(id -u)" -ne 0 ]; then
+	echo "caihong-mark-boot-successful must be run as root" >&2
+	exit 1
+fi
+
+if [ ! -x "$qbootctl" ]; then
+	echo "missing executable: $qbootctl" >&2
+	exit 1
+fi
+
+attempt=0
+slot=
+current=
+while [ "$attempt" -lt 30 ]; do
+	current=$(
+		"$qbootctl" -c 2>/dev/null |
+			awk '$1 == "Current" && $2 == "slot:" { print $3; exit }'
+	) || true
+
+	case "$current" in
+		_a) slot=a ;;
+		_b) slot=b ;;
+		*) slot= ;;
+	esac
+	[ -z "$slot" ] || break
+
+	attempt=$((attempt + 1))
+	sleep 1
+done
+
+if [ -z "$slot" ]; then
+	echo "unable to identify current A/B slot after ${attempt}s: ${current:-unknown}" >&2
+	exit 1
+fi
+
+"$qbootctl" -m "$slot"
+
+if ! "$qbootctl" -n "$slot" 2>/dev/null | grep -q 'is marked successful$'; then
+	echo "failed to verify successful marker for $current" >&2
+	exit 1
+fi
+
+echo "Verified $current as boot successful"

@@ -1,0 +1,1 @@
+{"alsps_hw_tcs3701.key_config":{"owner":"sns_alsps","is_als_dri":{"type":"int","ver":"0","data":"0"},"als_lb_algo":{"type":"int","ver":"0","data":"0"},"als_row_coe":{"type":"int","ver":"0","data":"110"},"als_ud_buf_len":{"type":"int","ver":"0","data":"8"},"als_timer_ms":{"type":"int","ver":"0","data":"25"},"algo_flag":{"type":"int","ver":"0","data":"1"}}}

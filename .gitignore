@@ -1,0 +1,11 @@
+/build/
+/downloads/
+/linux/
+/modules-current/
+/release/
+/external/libcamera/
+/external/plasma-camera/
+/external/qbootctl/
+*.part
+*.tmp
+__pycache__/

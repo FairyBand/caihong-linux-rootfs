@@ -1,0 +1,97 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+set -eu
+
+qbootctl=/usr/local/sbin/qbootctl
+
+usage()
+{
+	cat <<'EOF'
+Usage:
+  caihong-slot status
+  caihong-slot android [--reboot]
+  caihong-slot linux [--reboot]
+  caihong-slot a|b [--reboot]
+
+Slot mapping for this installation:
+  a / android  Android
+  b / linux    Caihong Linux
+
+Switching changes the slot selected for the next boot. It does not write a
+boot image or mark either slot successful.
+EOF
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+	echo "caihong-slot must be run as root" >&2
+	exit 1
+fi
+
+if [ ! -x "$qbootctl" ]; then
+	echo "missing executable: $qbootctl" >&2
+	exit 1
+fi
+
+command=${1:-status}
+reboot_after=0
+
+case ${2:-} in
+	"") ;;
+	--reboot) reboot_after=1 ;;
+	*) usage >&2; exit 2 ;;
+esac
+
+if [ "$#" -gt 2 ]; then
+	usage >&2
+	exit 2
+fi
+
+case "$command" in
+	status)
+		if [ "$reboot_after" -ne 0 ]; then
+			usage >&2
+			exit 2
+		fi
+		echo "Slot mapping: _a=Android, _b=Caihong Linux"
+		"$qbootctl" 2>/dev/null
+		exit 0
+		;;
+	a|android)
+		target=a
+		expected=_a
+		label=Android
+		;;
+	b|linux)
+		target=b
+		expected=_b
+		label="Caihong Linux"
+		;;
+	-h|--help|help)
+		usage
+		exit 0
+		;;
+	*)
+		usage >&2
+		exit 2
+		;;
+esac
+
+"$qbootctl" -s "$target"
+sync
+
+active=$("$qbootctl" -a 2>/dev/null | awk '{print $NF}')
+if [ "$active" != "$expected" ]; then
+	echo "slot verification failed: expected $expected, found ${active:-unknown}" >&2
+	exit 1
+fi
+
+echo "Next boot: $label ($expected)"
+
+if [ "$reboot_after" -eq 0 ]; then
+	echo "Reboot when ready, or run: caihong-slot $command --reboot"
+	exit 0
+fi
+
+echo "Rebooting into $label"
+systemctl reboot

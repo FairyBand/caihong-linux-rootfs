@@ -1,0 +1,12 @@
+[Unit]
+Description=Grow the Caihong root filesystem to fill its partition
+ConditionPathExists=!/var/lib/caihong-rootfs-grown
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/resize2fs /dev/disk/by-label/linux
+ExecStart=/usr/bin/touch /var/lib/caihong-rootfs-grown
+
+[Install]
+WantedBy=multi-user.target

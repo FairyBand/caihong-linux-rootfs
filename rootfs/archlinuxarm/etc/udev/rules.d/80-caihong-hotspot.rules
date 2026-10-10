@@ -1,0 +1,4 @@
+# NetworkManager must not poll the hostapd-owned AP VIF for STA statistics.
+# The keyfile rule is retained as a fallback for interfaces created after the
+# udev event has already been handled.
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="caihong-ap0", ENV{NM_UNMANAGED}="1"

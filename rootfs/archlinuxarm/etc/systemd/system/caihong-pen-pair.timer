@@ -1,0 +1,11 @@
+[Unit]
+Description=Retry pairing a recently docked Caihong pen
+
+[Timer]
+OnBootSec=20s
+OnUnitInactiveSec=20s
+AccuracySec=2s
+Unit=caihong-pen-pair.service
+
+[Install]
+WantedBy=timers.target

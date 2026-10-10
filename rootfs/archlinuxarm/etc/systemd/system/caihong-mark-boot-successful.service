@@ -1,0 +1,12 @@
+[Unit]
+Description=Mark the current Caihong A/B boot slot successful
+After=local-fs.target
+ConditionPathIsExecutable=/usr/local/sbin/qbootctl
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/caihong-mark-boot-successful
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

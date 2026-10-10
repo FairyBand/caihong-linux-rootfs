@@ -1,0 +1,67 @@
+{
+  "config":
+  {
+    "hw_platform": ["MTP", "Dragon", "Surf", "QRD", "HDK", "IDP", "IOT", "RCM"],
+    "soc_id": ["519", "557", "536", "577"]
+  },
+  "alsps_hw_tcs3701":{
+    "owner": "sns_alsps",
+    ".key_config":{
+      "owner": "sns_alsps",
+      "is_als_dri":{ "type": "int", "ver": "0",
+        "data": "0"
+      },
+      "als_lb_algo":{ "type": "int", "ver": "0",
+        "data": "0"
+      },
+      "als_row_coe":{ "type": "int", "ver": "0",
+        "data": "110"
+      },
+      "als_ud_buf_len":{ "type": "int", "ver": "0",
+        "data": "8"
+      },
+      "als_timer_ms":{ "type": "int", "ver": "0",
+        "data": "25"
+      },
+      "algo_flag":{ "type": "int", "ver": "0",
+        "data": "1"
+      }
+    },
+    ".hw_cfg":{
+      "owner": "sns_alsps",
+      "debug_mode":{ "type": "int", "ver": "0",
+        "data": "0"
+      },
+      "always_lb":{ "type": "int", "ver": "0",
+        "data": "0"
+      },
+      "use_asp1":{ "type": "int", "ver": "0",
+        "data": "0"
+      }
+    },
+    ".reg":{
+      "owner": "sns_alsps",
+      "reg0":{ "type": "int", "ver": "0",
+        "data": "0xBB00"
+      }
+    },
+    ".algo_para_0":{
+      "owner": "sns_alsps",
+      "gold_ch":{ "type": "str", "ver": "0",
+        "data": "5457, 2746, 1045, 8671, 4643, 3482, 2978, 1370, 7434, 3566"
+      },
+      "cct_coef_Hir":{ "type": "str", "ver": "0",
+        "data": "-0.202084, 0.258191, 0.859843, 0.231731, 0.006922, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 1.343837, -1.583832, -0.729338, 1.058903, 0.026487"
+      },
+      "cct_coef_Lir":{ "type": "str", "ver": "0",
+        "data": "0.169235, -0.159106, 0.861483, -0.564911, 0.135138, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.938028, -1.316666, -0.503492, 1.336205, 0.056846"
+      },
+      "lux_coef_Hir":{ "type": "str", "ver": "0",
+        "data": "0.146948, -0.089684, -0.047288, 0.090840, -0.017625"
+      },
+      "lux_coef_Lir":{ "type": "str", "ver": "0",
+        "data": "0.139420, -0.144878, -0.179963, 0.197370, 0.203255"
+      }
+    }
+  }
+}

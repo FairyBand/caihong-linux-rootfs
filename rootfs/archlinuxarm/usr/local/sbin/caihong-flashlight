@@ -1,0 +1,105 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+set -eu
+
+usage() {
+	echo "usage: caihong-flashlight {on [0-100]|off|status}" >&2
+	exit 2
+}
+
+command=${1:-}
+case "$command" in
+	on)
+		requested_level=${2:-40}
+		target=${3:-rear}
+		[ "$#" -le 3 ] || usage
+		case "$requested_level" in
+			''|*[!0-9]*) usage ;;
+		esac
+		[ "$requested_level" -le 100 ] || usage
+		;;
+	off|status)
+		requested_level=
+		target=${2:-rear}
+		[ "$#" -le 2 ] || usage
+		;;
+	*) usage ;;
+esac
+
+case "$target" in
+	rear|all) ;;
+	*) usage ;;
+esac
+
+target_matches_name() {
+	case "$target:$1" in
+		rear:*|all:*) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+flash_nodes() {
+	for node in /dev/v4l-subdev*; do
+		[ -e "$node" ] || continue
+		name=$(cat "/sys/class/video4linux/${node##*/}/name" 2>/dev/null || true)
+	target_matches_name "$name" || continue
+		if v4l2-ctl -d "$node" --all 2>/dev/null | grep -q '^Flash Controls'; then
+			echo "$node"
+		fi
+	done
+}
+
+sysfs_flash_nodes() {
+	for node in /sys/class/leds/*:flash-*; do
+		[ -d "$node" ] || continue
+		target_matches_name "${node##*/}" || continue
+		echo "$node"
+	done
+}
+
+if command -v v4l2-ctl >/dev/null 2>&1; then
+	set -- $(flash_nodes)
+else
+	set --
+fi
+
+if [ "$command" = status ]; then
+	if [ "$#" -gt 0 ]; then
+		# The white and yellow PMIC channels form one physical rear lamp.
+		printf 'rear: '
+		v4l2-ctl -d "$1" --get-ctrl=led_mode,intensity_torch_mode 2>/dev/null || true
+	else
+		brightness=0
+		for node in $(sysfs_flash_nodes); do
+			value=$(cat "$node/brightness")
+			[ "$value" -gt "$brightness" ] && brightness=$value
+		done
+		printf 'rear: brightness=%s\n' "$brightness"
+	fi
+	exit 0
+fi
+
+if [ "$#" -gt 0 ]; then
+	if [ "$command" = on ]; then
+		# The PM8550 flash driver accepts 5,000..500,000 in 5,000 steps.
+		intensity=$((requested_level * 500000 / 100))
+		[ "$intensity" -ge 5000 ] || intensity=5000
+		for node do
+			v4l2-ctl -d "$node" --set-ctrl="intensity_torch_mode=$intensity,led_mode=2"
+		done
+	else
+		for node do
+			v4l2-ctl -d "$node" --set-ctrl=led_mode=0
+		done
+	fi
+	exit 0
+fi
+
+for node in $(sysfs_flash_nodes); do
+	if [ "$command" = on ]; then
+		printf '%s\n' $((requested_level * 255 / 100)) >"$node/brightness"
+	else
+		printf '0\n' >"$node/brightness"
+	fi
+done

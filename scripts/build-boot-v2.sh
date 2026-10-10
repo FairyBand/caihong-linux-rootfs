@@ -1,0 +1,71 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+set -eu
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+output=${1:-"$project_dir/release/caihong-boot.img"}
+kernel=${2:-"$project_dir/linux/out/arch/arm64/boot/Image"}
+dtb=${3:-"$project_dir/linux/out/arch/arm64/boot/dts/qcom/sm8650-oneplus-caihong.dtb"}
+cmdline_file=${CMDLINE_FILE:-"$project_dir/caihong-direct-root-cmdline.txt"}
+temporary="$output.new"
+
+for tool in mkbootimg sha256sum; do
+	command -v "$tool" >/dev/null 2>&1 || {
+		echo "missing tool: $tool" >&2
+		exit 1
+	}
+done
+for file in "$kernel" "$dtb" "$cmdline_file"; do
+	[ -f "$file" ] || {
+		echo "missing input: $file" >&2
+		exit 1
+	}
+done
+
+mkdir -p "$(dirname -- "$output")"
+if [ -e "$output" ] && [ "${FORCE:-0}" != 1 ]; then
+	echo "refusing to overwrite existing output: $output" >&2
+	exit 1
+fi
+rm -f -- "$temporary"
+IFS= read -r cmdline < "$cmdline_file"
+case " $cmdline " in
+	*' root=PARTLABEL=linux '*) ;;
+	*) echo "direct-root command line is missing root=PARTLABEL=linux" >&2; exit 1 ;;
+esac
+case " $cmdline " in
+	*' rdinit='*|*' root=LABEL='*)
+		echo "direct-root command line still references an initramfs root" >&2
+		exit 1
+		;;
+esac
+
+cleanup()
+{
+	rm -f -- "$temporary"
+}
+trap cleanup EXIT HUP INT TERM
+
+# Android boot header v2 carries only Image and the dedicated DTB payload.
+# No --ramdisk argument is passed, so ramdisk_size is exactly zero.
+mkbootimg \
+	--base 0x00000000 \
+	--kernel_offset 0x00008000 \
+	--ramdisk_offset 0x01000000 \
+	--second_offset 0x00f00000 \
+	--tags_offset 0x00000100 \
+	--dtb_offset 0x04000000 \
+	--pagesize 4096 \
+	--header_version 2 \
+	--os_version 16.0.0 \
+	--os_patch_level 2026-06 \
+	--kernel "$kernel" \
+	--dtb "$dtb" \
+	--cmdline "$cmdline" \
+	--output "$temporary"
+
+mv -- "$temporary" "$output"
+trap - EXIT HUP INT TERM
+echo "created direct-root boot image: $output"
+sha256sum "$output"

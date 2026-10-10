@@ -1,0 +1,478 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+set -Eeuo pipefail
+
+readonly config_file=/etc/caihong-hotspot.conf
+readonly state_dir=/run/caihong-hotspot
+readonly lock_file=/run/lock/caihong-hotspot.lock
+readonly ap_interface=${CAIHONG_HOTSPOT_INTERFACE:-caihong-ap0}
+
+die()
+{
+	echo "caihong-hotspot: $*" >&2
+	exit 1
+}
+
+log()
+{
+	echo "caihong-hotspot: $*"
+}
+
+need_root()
+{
+	[[ $EUID -eq 0 ]] || die "must be run as root"
+}
+
+load_config()
+{
+	HOTSPOT_SSID=Caihong-Hotspot
+	HOTSPOT_PASSPHRASE=caihong-hotspot
+	HOTSPOT_COUNTRY=CN
+	HOTSPOT_ADDRESS=192.168.50.1/24
+	HOTSPOT_SUBNET=192.168.50.0/24
+	HOTSPOT_DHCP_RANGE=192.168.50.50,192.168.50.200,255.255.255.0,12h
+	HOTSPOT_UPSTREAM=
+	if [[ -f $config_file ]]; then
+		# The file is root-owned configuration, not a network-supplied input.
+		# shellcheck disable=SC1090
+		source "$config_file"
+	fi
+
+	[[ $HOTSPOT_SSID != *$'\n'* && ${#HOTSPOT_SSID} -ge 1 && ${#HOTSPOT_SSID} -le 32 ]] ||
+		die "HOTSPOT_SSID must be 1..32 characters without newlines"
+	[[ $HOTSPOT_PASSPHRASE != *$'\n'* && ${#HOTSPOT_PASSPHRASE} -ge 8 && ${#HOTSPOT_PASSPHRASE} -le 63 ]] ||
+		die "HOTSPOT_PASSPHRASE must be 8..63 characters without newlines"
+	[[ $HOTSPOT_COUNTRY =~ ^[A-Za-z]{2}$ ]] ||
+		die "HOTSPOT_COUNTRY must be an ISO 3166 two-letter code"
+	[[ $HOTSPOT_ADDRESS =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]] ||
+		die "HOTSPOT_ADDRESS must be an IPv4 address with prefix"
+	[[ $HOTSPOT_SUBNET =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]] ||
+		die "HOTSPOT_SUBNET must be an IPv4 network with prefix"
+}
+
+acquire_lock()
+{
+	install -d -m 0755 "$state_dir" /run/lock
+	exec 9>"$lock_file"
+	flock -n 9 || die "another hotspot operation is in progress"
+}
+
+find_upstream()
+{
+	if [[ -n $HOTSPOT_UPSTREAM ]]; then
+		[[ -e /sys/class/net/$HOTSPOT_UPSTREAM ]] ||
+			die "upstream interface does not exist: $HOTSPOT_UPSTREAM"
+		printf '%s\n' "$HOTSPOT_UPSTREAM"
+		return
+	fi
+
+	local path name type
+	for path in /sys/class/net/*/phy80211; do
+		[[ -e $path ]] || continue
+		name=${path%/phy80211}
+		name=${name##*/}
+		[[ $name != "$ap_interface" ]] || continue
+		type=$(iw dev "$name" info 2>/dev/null |
+			awk '$1 == "type" { print $2; exit }')
+		if [[ $type == managed ]]; then
+			printf '%s\n' "$name"
+			return
+		fi
+	done
+	die "no managed WLAN interface is available"
+}
+
+read_channel()
+{
+	local interface=$1 channel
+	channel=$(iw dev "$interface" info 2>/dev/null |
+		awk '$1 == "channel" { print $2; exit }')
+	[[ $channel =~ ^[0-9]+$ ]] ||
+		die "STA interface $interface is not associated with a channel"
+	printf '%s\n' "$channel"
+}
+
+set_regulatory_domain()
+{
+	local country=${HOTSPOT_COUNTRY^^}
+
+	# ath12k uses a self-managed wiphy.  The user hint must reach the
+	# firmware before hostapd tries to start a 5 GHz AP; otherwise the
+	# channel remains NO_IR in the world domain even when the STA is
+	# already associated on that channel.
+	iw reg set "$country" >/dev/null 2>&1 || true
+	for _ in {1..30}; do
+		if iw reg get | awk -v country="$country" '
+			/^phy#/ { in_phy = 1; next }
+			in_phy && $1 == "country" {
+				if ($2 == country ":") found = 1
+				in_phy = 0
+			}
+			END { exit(found ? 0 : 1) }
+		'; then
+			return 0
+		fi
+		sleep 0.1
+	done
+	log "regulatory PHY did not report country $country; hostapd will enforce its channel checks"
+}
+
+show_regulatory()
+{
+	command -v iw >/dev/null 2>&1 || die "iw is required"
+	echo "caihong-hotspot: regulatory state (global and self-managed PHYs):"
+	iw reg get
+}
+
+set_regulatory_debug()
+{
+	local country=${1^^}
+	[[ $country == 00 || $country =~ ^[A-Z]{2}$ ]] ||
+		die "country must be an ISO 3166 two-letter code (or 00 to reset)"
+	command -v iw >/dev/null 2>&1 || die "iw is required"
+	iw reg set "$country" || die "unable to set regulatory country to $country"
+	# The command updates the global hint immediately, while an ath12k
+	# self-managed PHY may report the new country asynchronously.
+	sleep 0.2
+	show_regulatory
+}
+
+derive_ap_mac()
+{
+	local interface=$1 base b1 b2 b3 b4 b5 b6 first last
+	base=$(cat "/sys/class/net/$interface/address")
+	IFS=: read -r b1 b2 b3 b4 b5 b6 <<<"$base"
+	[[ $base =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] ||
+		die "invalid STA MAC: $base"
+	# Set the locally-administered bit and change the final octet. This keeps
+	# the AP address derived from the hardware address without hard-coding it.
+	first=$((16#$b1 | 2))
+	last=$(( (16#$b6 + 1) & 255 ))
+	printf '%02x:%s:%s:%s:%s:%02x\n' \
+		"$first" "$b2" "$b3" "$b4" "$b5" "$last"
+}
+
+set_ap_mac()
+{
+	local current
+	for _ in {1..20}; do
+		current=$(cat "/sys/class/net/$ap_interface/address" 2>/dev/null || true)
+		[[ ${current,,} == ${ap_mac,,} ]] && return 0
+		ip link set dev "$ap_interface" address "$ap_mac" >/dev/null 2>&1 || true
+		sleep 0.1
+	done
+	die "unable to set AP MAC to $ap_mac (found ${current:-unknown})"
+}
+
+state_value()
+{
+	local key=$1
+	awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' \
+		"$state_dir/state" 2>/dev/null || true
+}
+
+write_state()
+{
+	local temporary=$state_dir/state.new
+	{
+		printf 'parent=%s\n' "$parent_interface"
+		printf 'ap_mac=%s\n' "$ap_mac"
+		printf 'channel=%s\n' "$channel"
+		printf 'address=%s\n' "$HOTSPOT_ADDRESS"
+		printf 'upstream=%s\n' "$upstream_interface"
+		printf 'hostapd_pidfile=%s\n' "$hostapd_pidfile"
+		printf 'dnsmasq_pidfile=%s\n' "$dnsmasq_pidfile"
+		printf 'ip_forward_before=%s\n' "${ip_forward_before:-}"
+		printf 'nat_backend=%s\n' "${nat_backend:-none}"
+	} >"$temporary"
+	chmod 0600 "$temporary"
+	mv -f "$temporary" "$state_dir/state"
+}
+
+pid_alive()
+{
+	local pid_file=$1 pid
+	[[ -s $pid_file ]] || return 1
+	pid=$(cat "$pid_file")
+	[[ $pid =~ ^[0-9]+$ ]] || return 1
+	kill -0 "$pid" 2>/dev/null
+}
+
+write_hostapd_config()
+{
+	local hw_mode=g
+	if (( channel >= 30 )); then
+		hw_mode=a
+	fi
+	cat >"$hostapd_conf" <<EOF
+ctrl_interface=/run/hostapd
+interface=$ap_interface
+driver=nl80211
+ssid=$HOTSPOT_SSID
+country_code=${HOTSPOT_COUNTRY^^}
+ieee80211d=1
+hw_mode=$hw_mode
+channel=$channel
+ieee80211n=1
+wmm_enabled=1
+auth_algs=1
+wpa=2
+wpa_passphrase=$HOTSPOT_PASSPHRASE
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+EOF
+	if (( channel >= 30 )); then
+		printf '%s\n' 'ieee80211ac=1' >>"$hostapd_conf"
+	fi
+}
+
+write_dnsmasq_config()
+{
+	cat >"$dnsmasq_conf" <<EOF
+interface=$ap_interface
+bind-interfaces
+listen-address=${HOTSPOT_ADDRESS%/*}
+dhcp-range=$HOTSPOT_DHCP_RANGE
+dhcp-authoritative
+dhcp-option=3,${HOTSPOT_ADDRESS%/*}
+dhcp-option=6,${HOTSPOT_ADDRESS%/*}
+no-hosts
+EOF
+	if [[ -f /run/NetworkManager/resolv.conf ]]; then
+		printf '%s\n' 'resolv-file=/run/NetworkManager/resolv.conf' >>"$dnsmasq_conf"
+	fi
+}
+
+setup_nat()
+{
+	nat_backend=none
+	ip_forward_before=$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null ||
+		printf '0')
+	if ! command -v nft >/dev/null 2>&1; then
+		log "nft is unavailable; AP will run without IPv4 forwarding"
+		return 0
+	fi
+	if nft -f - >/dev/null 2>&1 <<EOF
+add table ip caihong_hotspot
+add chain ip caihong_hotspot forward { type filter hook forward priority filter; policy accept; }
+add chain ip caihong_hotspot postrouting { type nat hook postrouting priority srcnat; policy accept; }
+add rule ip caihong_hotspot forward iifname "$ap_interface" oifname "$upstream_interface" accept
+add rule ip caihong_hotspot forward iifname "$upstream_interface" oifname "$ap_interface" ct state established,related accept
+add rule ip caihong_hotspot postrouting oifname "$upstream_interface" ip saddr $HOTSPOT_SUBNET masquerade
+EOF
+	then
+		if sysctl -q -w net.ipv4.ip_forward=1; then
+			nat_backend=nft
+			return 0
+		fi
+		nft delete table ip caihong_hotspot 2>/dev/null || true
+	fi
+	log "kernel netfilter NAT is unavailable; AP will run without IPv4 forwarding"
+}
+
+remove_nat()
+{
+	case ${nat_backend:-none} in
+		nft) nft delete table ip caihong_hotspot 2>/dev/null || true ;;
+	esac
+	if [[ ${ip_forward_before:-} =~ ^[01]$ ]]; then
+		sysctl -q -w "net.ipv4.ip_forward=$ip_forward_before" 2>/dev/null || true
+	fi
+}
+
+stop_daemon()
+{
+	local pid_file=$1 pid
+	if [[ -s $pid_file ]]; then
+		pid=$(cat "$pid_file")
+		if [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+			kill "$pid" 2>/dev/null || true
+			for _ in {1..20}; do
+				kill -0 "$pid" 2>/dev/null || break
+				sleep 0.1
+			done
+			kill -9 "$pid" 2>/dev/null || true
+		fi
+	fi
+}
+
+cleanup_interface()
+{
+	if [[ -e /sys/class/net/$ap_interface ]]; then
+		nmcli device set "$ap_interface" managed no >/dev/null 2>&1 || true
+		ip addr flush dev "$ap_interface" >/dev/null 2>&1 || true
+		ip link set dev "$ap_interface" down >/dev/null 2>&1 || true
+		iw dev "$ap_interface" del >/dev/null 2>&1 || true
+	fi
+}
+
+stop_hotspot()
+{
+	if [[ ! -f $state_dir/state ]]; then
+		cleanup_interface
+		return 0
+	fi
+
+	hostapd_pidfile=$(state_value hostapd_pidfile)
+	dnsmasq_pidfile=$(state_value dnsmasq_pidfile)
+	nat_backend=$(state_value nat_backend)
+	ip_forward_before=$(state_value ip_forward_before)
+	stop_daemon "${dnsmasq_pidfile:-$state_dir/dnsmasq.pid}"
+	stop_daemon "${hostapd_pidfile:-$state_dir/hostapd.pid}"
+	remove_nat
+	cleanup_interface
+	rm -rf "$state_dir"
+	log "stopped"
+}
+
+start_cleanup()
+{
+	[[ ${start_committed:-0} -eq 0 ]] || return 0
+	stop_daemon "${dnsmasq_pidfile:-$state_dir/dnsmasq.pid}"
+	stop_daemon "${hostapd_pidfile:-$state_dir/hostapd.pid}"
+	remove_nat
+	cleanup_interface
+	rm -rf "$state_dir"
+}
+
+start_hotspot()
+{
+	if [[ -f $state_dir/state ]] &&
+		pid_alive "$(state_value hostapd_pidfile)" &&
+		pid_alive "$(state_value dnsmasq_pidfile)"; then
+		log "already running on $ap_interface"
+		return 0
+	fi
+	start_committed=0
+	trap start_cleanup EXIT
+	[[ ! -e /sys/class/net/$ap_interface ]] || cleanup_interface
+	command -v iw >/dev/null 2>&1 || die "iw is required"
+	command -v hostapd >/dev/null 2>&1 || die "hostapd is required"
+	command -v dnsmasq >/dev/null 2>&1 || die "dnsmasq is required"
+
+	parent_interface=
+	channel=
+	# NetworkManager may have created the managed interface before the STA
+	# association is complete.  Wait briefly for a real channel instead of
+	# failing the whole service and leaving the user to retry manually.
+	for _ in {1..40}; do
+		parent_interface=$(find_upstream 2>/dev/null || true)
+		if [[ -n $parent_interface ]]; then
+			channel=$(read_channel "$parent_interface" 2>/dev/null || true)
+			if [[ $channel =~ ^[0-9]+$ ]]; then
+				break
+			fi
+		fi
+		parent_interface=
+		channel=
+		sleep 1
+	done
+	[[ -n $parent_interface && $channel =~ ^[0-9]+$ ]] ||
+		die "STA interface is not associated with a channel"
+	upstream_interface=$parent_interface
+	set_regulatory_domain
+	ap_mac=$(derive_ap_mac "$parent_interface")
+	hostapd_conf=$state_dir/hostapd.conf
+	hostapd_log=$state_dir/hostapd.log
+	hostapd_pidfile=$state_dir/hostapd.pid
+	dnsmasq_conf=$state_dir/dnsmasq.conf
+	dnsmasq_log=$state_dir/dnsmasq.log
+	dnsmasq_pidfile=$state_dir/dnsmasq.pid
+	ip_forward_before=
+	nat_backend=none
+
+	iw dev "$parent_interface" interface add "$ap_interface" type __ap
+	# NetworkManager's unmanaged-devices rule is loaded before this interface
+	# exists. The explicit command also covers a live rootfs upgraded in place.
+	nmcli device set "$ap_interface" managed no >/dev/null 2>&1 || true
+	set_ap_mac
+	ip addr add "$HOTSPOT_ADDRESS" dev "$ap_interface"
+	ip link set dev "$ap_interface" up
+	write_hostapd_config
+	write_dnsmasq_config
+
+	hostapd -B -P "$hostapd_pidfile" -f "$hostapd_log" "$hostapd_conf" 9>&-
+	for _ in {1..100}; do
+		if ! pid_alive "$hostapd_pidfile"; then
+			break
+		fi
+		if iw dev "$ap_interface" info 2>/dev/null | grep -q 'type AP'; then
+			break
+		fi
+		sleep 0.1
+	done
+	if ! pid_alive "$hostapd_pidfile" ||
+		! iw dev "$ap_interface" info 2>/dev/null | grep -q 'type AP'; then
+		cat "$hostapd_log" >&2 2>/dev/null || true
+		stop_daemon "$hostapd_pidfile"
+		cleanup_interface
+		die "hostapd did not start an AP"
+	fi
+	dnsmasq --conf-file="$dnsmasq_conf" --pid-file="$dnsmasq_pidfile" \
+		--log-facility="$dnsmasq_log" 9>&-
+	pid_alive "$dnsmasq_pidfile" || {
+		cat "$dnsmasq_log" >&2 2>/dev/null || true
+		stop_daemon "$hostapd_pidfile"
+		cleanup_interface
+		die "dnsmasq did not start"
+	}
+	setup_nat
+	write_state
+	log "started: SSID=$HOTSPOT_SSID interface=$ap_interface channel=$channel upstream=$upstream_interface"
+	if [[ $nat_backend == none ]]; then
+		log "IPv4 forwarding is unavailable with the current kernel; local AP/DHCP remain active"
+	else
+		log "IPv4 sharing enabled with $nat_backend"
+	fi
+	start_committed=1
+	trap - EXIT
+}
+
+status_hotspot()
+{
+	if [[ ! -f $state_dir/state ]]; then
+		echo "caihong-hotspot: stopped"
+		return 3
+	fi
+	local parent channel upstream ap_mac
+	parent=$(state_value parent)
+	channel=$(state_value channel)
+	upstream=$(state_value upstream)
+	ap_mac=$(state_value ap_mac)
+	echo "caihong-hotspot: interface=$ap_interface ap_mac=$ap_mac parent=$parent channel=$channel upstream=$upstream"
+	echo "caihong-hotspot: SSID=$HOTSPOT_SSID nat=$(state_value nat_backend)"
+	if ! pid_alive "$(state_value hostapd_pidfile)" ||
+		! pid_alive "$(state_value dnsmasq_pidfile)"; then
+		echo "caihong-hotspot: daemon failure (run stop then start)" >&2
+		return 1
+	fi
+	return 0
+}
+
+main()
+{
+	need_root
+	load_config
+	acquire_lock
+	case ${1:-status} in
+		start) start_hotspot ;;
+		stop) stop_hotspot ;;
+		restart) stop_hotspot; start_hotspot ;;
+		status) status_hotspot ;;
+		regulatory|reg)
+			case ${2:-show} in
+				show) show_regulatory ;;
+				set) [[ $# -ge 3 ]] || die "usage: $0 regulatory set CODE"; set_regulatory_debug "$3" ;;
+				reset) set_regulatory_debug 00 ;;
+				*) die "usage: $0 regulatory {show|set CODE|reset}" ;;
+			esac
+			;;
+		*)
+			echo "Usage: $0 {start|stop|restart|status|regulatory {show|set CODE|reset}}" >&2
+			exit 2
+			;;
+	esac
+}
+
+main "$@"

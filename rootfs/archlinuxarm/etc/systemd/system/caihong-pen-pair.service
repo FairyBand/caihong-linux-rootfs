@@ -1,0 +1,21 @@
+[Unit]
+Description=Pair the recently docked Caihong pen
+After=bluetooth.service caihong-pen-charge.service
+ConditionPathExists=/etc/caihong-pen.json
+ConditionPathExists=/run/caihong-pen-charge/state.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/caihong-pen-pair
+TimeoutStartSec=70
+TimeoutStopSec=10
+RuntimeDirectory=caihong-pen-pair
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+StateDirectory=caihong-pen
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes

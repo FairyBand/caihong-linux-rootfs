@@ -1,0 +1,5 @@
+# Vendor firmware and stock SSC registry exports are immutable release inputs.
+firmware/** -diff -text
+firmware-assets/caihong-ssc/bin/** -diff -text
+firmware-assets/caihong-ssc/lib/** -diff -text
+firmware-assets/caihong-ssc/root/** -diff -text

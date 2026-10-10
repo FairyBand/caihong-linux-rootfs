@@ -1,0 +1,87 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+set -euo pipefail
+
+readonly reader=/usr/local/libexec/caihong-nvram-mac
+
+wait_for_path()
+{
+	local path=$1
+	local attempts=150
+
+	while [[ ! -e $path && $attempts -gt 0 ]]; do
+		sleep 0.1
+		((attempts--))
+	done
+	[[ -e $path ]]
+}
+
+bluetooth_address()
+{
+	btmgmt --index hci0 info 2>/dev/null |
+		awk '/^[[:space:]]*addr / { print tolower($2); exit }'
+}
+
+wait_for_path /dev/disk/by-partlabel/nonmodemst1
+wait_for_path /dev/disk/by-partlabel/nonmodemst2
+
+mac_values=$($reader)
+while IFS='=' read -r name value; do
+	case $name in
+	WLAN_MAC) wlan_mac=$value ;;
+	BLUETOOTH_MAC) bluetooth_mac=$value ;;
+	esac
+done <<< "$mac_values"
+
+[[ ${wlan_mac:-} =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]]
+[[ ${bluetooth_mac:-} =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]]
+[[ $wlan_mac != "$bluetooth_mac" ]]
+
+wifi_interface=
+for phy in /sys/class/net/*/phy80211; do
+	[[ -e $phy ]] || continue
+	wifi_interface=${phy%/phy80211}
+	wifi_interface=${wifi_interface##*/}
+	break
+done
+if [[ -z $wifi_interface ]]; then
+	echo "no WLAN interface found" >&2
+	exit 1
+fi
+
+current_wlan=$(cat "/sys/class/net/$wifi_interface/address")
+if [[ ${current_wlan,,} != ${wlan_mac,,} ]]; then
+	was_up=0
+	if ip link show dev "$wifi_interface" | grep -q '<[^>]*UP[,>]'; then
+		was_up=1
+		ip link set dev "$wifi_interface" down
+	fi
+	ip link set dev "$wifi_interface" address "$wlan_mac"
+	if (( was_up )); then
+		ip link set dev "$wifi_interface" up
+	fi
+fi
+
+wait_for_path /sys/class/bluetooth/hci0
+current_bluetooth=$(bluetooth_address)
+if [[ ${current_bluetooth,,} != ${bluetooth_mac,,} ]]; then
+	was_powered=0
+	if btmgmt --index hci0 info | grep -q 'current settings:.* powered'; then
+		was_powered=1
+	fi
+	btmgmt --index hci0 power off
+	btmgmt --index hci0 public-addr "$bluetooth_mac"
+	for ((attempts = 100; attempts > 0; attempts--)); do
+		current_bluetooth=$(bluetooth_address || true)
+		[[ ${current_bluetooth,,} == ${bluetooth_mac,,} ]] && break
+		sleep 0.1
+	done
+	[[ ${current_bluetooth,,} == ${bluetooth_mac,,} ]]
+	if (( was_powered )); then
+		btmgmt --index hci0 power on
+	fi
+fi
+
+echo "WLAN $wifi_interface: $wlan_mac"
+echo "Bluetooth hci0: $bluetooth_mac"

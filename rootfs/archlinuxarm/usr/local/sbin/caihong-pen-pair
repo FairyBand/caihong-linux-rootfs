@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
+"""Pair the pen identified by a recent, checksum-validated CPS8601 attach."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import signal
+import subprocess
+import time
+
+
+ADDRESS_RE = re.compile(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")
+MAX_OBSERVATION_AGE = 600
+DISCOVERY_TIMEOUT = 25
+PAIR_TIMEOUT = 35
+RETRY_DELAYS = (30, 60, 120, 300, 600)
+
+
+class BluezError(RuntimeError):
+    pass
+
+
+def valid_address(value):
+    if not isinstance(value, str) or not ADDRESS_RE.fullmatch(value):
+        return None
+    raw = bytes.fromhex(value.replace(":", ""))
+    if raw == b"\0" * 6 or raw == b"\xff" * 6:
+        return None
+    return value.upper()
+
+
+def load_target(config_path, charge_state_path, now):
+    config = json.loads(config_path.read_text())
+    if (not isinstance(config, dict)
+            or not set(config).issubset({"address", "scan_mode"})
+            or type(config.get("scan_mode")) is not int
+            or config["scan_mode"] not in range(1, 6)):
+        raise ValueError("invalid pen configuration")
+    configured = valid_address(config.get("address"))
+    if "address" in config and configured is None:
+        raise ValueError("invalid configured pen address")
+
+    charge = json.loads(charge_state_path.read_text())
+    if not isinstance(charge, dict):
+        raise ValueError("invalid charge state")
+    address = valid_address(charge.get("address"))
+    observed_at = charge.get("observed_at")
+    if (address is None or type(observed_at) not in (int, float)
+            or observed_at < 0 or observed_at > now
+            or now - observed_at > MAX_OBSERVATION_AGE):
+        raise FileNotFoundError("no recent attached pen identity")
+    if configured is not None and address != configured:
+        raise PermissionError("attached pen differs from configured pen")
+    return address, config["scan_mode"]
+
+
+def read_state(path, now):
+    try:
+        state = json.loads(path.read_text())
+        if (not isinstance(state, dict)
+                or type(state.get("failures")) is not int
+                or not 0 <= state["failures"] <= len(RETRY_DELAYS)
+                or type(state.get("retry_after")) not in (int, float)
+                or not 0 <= state["retry_after"] <= now + RETRY_DELAYS[-1]):
+            return {}
+        return state
+    except (OSError, ValueError):
+        return {}
+
+
+def write_json(path, data):
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(data, sort_keys=True) + "\n")
+    temporary.chmod(0o600)
+    temporary.replace(path)
+
+
+def write_identity(path, address, mode):
+    identity = {"address": address, "scan_mode": mode}
+    try:
+        if json.loads(path.read_text()) == identity:
+            return False
+    except (OSError, ValueError):
+        pass
+    write_json(path, identity)
+    return True
+
+
+class Bluez:
+    def __init__(self):
+        from gi.repository import Gio, GLib
+        self.Gio, self.GLib = Gio, GLib
+        self.bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+
+    def call(self, path, interface, method, parameters=None, timeout=5000):
+        try:
+            result = self.bus.call_sync(
+                "org.bluez", path, interface, method, parameters, None,
+                self.Gio.DBusCallFlags.NO_AUTO_START, timeout, None)
+            return result.unpack()
+        except self.GLib.Error as error:
+            name = self.Gio.DBusError.get_remote_error(error)
+            raise BluezError(name or "local-dbus-error") from None
+
+    def objects(self):
+        return self.call("/", "org.freedesktop.DBus.ObjectManager",
+                         "GetManagedObjects")[0]
+
+    def adapter(self):
+        matches = [(path, ifaces["org.bluez.Adapter1"])
+                   for path, ifaces in self.objects().items()
+                   if "org.bluez.Adapter1" in ifaces]
+        if len(matches) != 1:
+            return None, "adapter-unavailable"
+        path, props = matches[0]
+        if not props.get("Powered"):
+            return None, "adapter-off"
+        if not props.get("Pairable"):
+            return None, "adapter-not-pairable"
+        return path, None
+
+    def device(self, address):
+        matches = [(path, ifaces["org.bluez.Device1"])
+                   for path, ifaces in self.objects().items()
+                   if ifaces.get("org.bluez.Device1", {}).get("Address", "").upper()
+                   == address]
+        if len(matches) != 1:
+            return None
+        return matches[0]
+
+    def discover(self, adapter, address, timeout=DISCOVERY_TIMEOUT):
+        filters = {"Transport": self.GLib.Variant("s", "le"),
+                   "Pattern": self.GLib.Variant("s", address)}
+        parameters = self.GLib.Variant("(a{sv})", (filters,))
+        self.call(adapter, "org.bluez.Adapter1", "SetDiscoveryFilter", parameters)
+        self.call(adapter, "org.bluez.Adapter1", "StartDiscovery")
+        try:
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                device = self.device(address)
+                if device is not None:
+                    return device
+                time.sleep(0.25)
+            return None
+        finally:
+            try:
+                self.call(adapter, "org.bluez.Adapter1", "StopDiscovery")
+            except BluezError:
+                pass
+
+
+def invoke_pair(address, timeout=PAIR_TIMEOUT):
+    command = ["bluetoothctl", "--agent", "NoInputNoOutput",
+               "--timeout", str(timeout), "pair", address]
+    try:
+        return subprocess.run(command, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              timeout=timeout + 2).returncode
+    except subprocess.TimeoutExpired:
+        subprocess.run(["bluetoothctl", "--timeout", "5", "cancel-pairing", address],
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=8)
+        return 124
+
+
+def pair_once(bluez, address, pair_command=invoke_pair):
+    adapter, reason = bluez.adapter()
+    if adapter is None:
+        return reason
+    device = bluez.device(address)
+    if device is not None and device[1].get("Paired"):
+        return "paired"
+    device = bluez.discover(adapter, address)
+    if device is None:
+        return "waiting-for-pen-advertisement"
+    if device[1].get("Blocked"):
+        return "device-blocked"
+    if device[1].get("Paired"):
+        return "paired"
+    return_code = pair_command(address)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        device = bluez.device(address)
+        if device is not None and device[1].get("Paired"):
+            return "paired"
+        time.sleep(0.2)
+    return "pair-failed" if return_code != 124 else "pair-timeout"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path, default=Path("/etc/caihong-pen.json"))
+    parser.add_argument("--charge-state", type=Path,
+                        default=Path("/run/caihong-pen-charge/state.json"))
+    parser.add_argument("--identity", type=Path,
+                        default=Path("/var/lib/caihong-pen/paired.json"))
+    parser.add_argument("--state", type=Path,
+                        default=Path("/run/caihong-pen-pair/state.json"))
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error("run as root")
+    now = time.monotonic()
+    state = read_state(args.state, now)
+    previous = state.get("status")
+    state.setdefault("failures", 0)
+    state.setdefault("retry_after", 0)
+    try:
+        address, mode = load_target(args.config, args.charge_state, now)
+    except FileNotFoundError:
+        state["status"] = "waiting-for-dock"
+        write_json(args.state, state)
+        return 0
+    except PermissionError:
+        state["status"] = "attached-pen-not-configured"
+        write_json(args.state, state)
+        return 0
+    if now < state["retry_after"]:
+        state["status"] = "waiting-to-retry"
+        write_json(args.state, state)
+        return 0
+    try:
+        status = pair_once(Bluez(), address)
+    except (BluezError, OSError, subprocess.SubprocessError) as error:
+        status = f"retry-later-{type(error).__name__}"
+    if status == "paired":
+        write_identity(args.identity, address, mode)
+        state.update(status=status, failures=0, retry_after=0)
+    elif status in ("adapter-off", "adapter-unavailable", "adapter-not-pairable",
+                    "device-blocked"):
+        state["status"] = status
+    else:
+        failures = min(state["failures"] + 1, len(RETRY_DELAYS))
+        state.update(status=status, failures=failures,
+                     retry_after=now + RETRY_DELAYS[failures - 1])
+    write_json(args.state, state)
+    if state["status"] != previous:
+        print(f"Pen pairing: {state['status']}", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    def interrupted(_signum, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        raise SystemExit(0)
+    except (OSError, ValueError, ImportError):
+        raise SystemExit("invalid pen configuration, state, or missing python-gobject")
