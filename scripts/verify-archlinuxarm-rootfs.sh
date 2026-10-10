@@ -15,6 +15,7 @@ target=$(cd -- "$target" && pwd)
 required_paths='etc/NetworkManager/conf.d/20-caihong-hardware-mac.conf
 etc/NetworkManager/conf.d/30-caihong-hotspot.conf
 etc/bluetooth/main.conf
+etc/xdg/bluedevilglobalrc
 etc/caihong-hotspot.conf
 etc/caihong-pen.json
 etc/modules-load.d/caihong.conf
@@ -157,6 +158,10 @@ done
 
 if ! grep -qx 'AutoEnable=true' "$target/etc/bluetooth/main.conf"; then
 	echo "BlueZ controller auto-enable policy is missing" >&2
+	failed=1
+fi
+if ! grep -qx 'launchState=enable' "$target/etc/xdg/bluedevilglobalrc"; then
+	echo "BlueDevil login policy does not enable Bluetooth" >&2
 	failed=1
 fi
 if ! grep -qx \
