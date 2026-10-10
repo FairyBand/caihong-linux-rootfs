@@ -9,7 +9,16 @@ linux_dir=${LINUX_DIR:-"$project_dir/linux"}
 kernel_out=${KERNEL_OUT:-"$project_dir/build/linux"}
 module_tree=${MODULE_TREE:-"$project_dir/modules-current"}
 release_dir=${RELEASE_DIR:-"$project_dir/release"}
-cross_compile=${CROSS_COMPILE:-aarch64-linux-gnu-}
+if [ "${CROSS_COMPILE+x}" = x ]; then
+	cross_compile=$CROSS_COMPILE
+else
+	case $(uname -m) in
+		aarch64|arm64) cross_compile= ;;
+		*) cross_compile=aarch64-linux-gnu- ;;
+	esac
+fi
+kernel_cc=${KERNEL_CC:-${cross_compile}gcc}
+kernel_hostcc=${KERNEL_HOSTCC:-gcc}
 cpu_count=$(nproc)
 if [ "$cpu_count" -gt 1 ]; then jobs_default=$((cpu_count - 1)); else jobs_default=1; fi
 jobs=${JOBS:-$jobs_default}
@@ -28,7 +37,8 @@ done
 mkdir -p "$kernel_out" "$release_dir"
 
 make -C "$linux_dir" O="$kernel_out" ARCH=arm64 \
-	CROSS_COMPILE="$cross_compile" caihong_defconfig
+	CROSS_COMPILE="$cross_compile" CC="$kernel_cc" HOSTCC="$kernel_hostcc" \
+	caihong_defconfig
 for setting in \
 	CONFIG_DEVTMPFS=y CONFIG_DEVTMPFS_MOUNT=y CONFIG_EFI_PARTITION=y \
 	CONFIG_SCSI=y CONFIG_BLK_DEV_SD=y CONFIG_SCSI_UFSHCD=y \
@@ -42,6 +52,7 @@ done
 
 make -C "$linux_dir" O="$kernel_out" ARCH=arm64 \
 	CROSS_COMPILE="$cross_compile" \
+	CC="$kernel_cc" HOSTCC="$kernel_hostcc" \
 	CONFIG_EXTRA_FIRMWARE="$early_firmware" \
 	CONFIG_EXTRA_FIRMWARE_DIR="$firmware_dir" \
 	-j"$jobs" Image modules qcom/sm8650-oneplus-caihong.dtb
@@ -49,10 +60,12 @@ make -C "$linux_dir" O="$kernel_out" ARCH=arm64 \
 rm -rf -- "$module_tree"
 make -C "$linux_dir" O="$kernel_out" ARCH=arm64 \
 	CROSS_COMPILE="$cross_compile" \
+	CC="$kernel_cc" HOSTCC="$kernel_hostcc" \
 	INSTALL_MOD_PATH="$module_tree" modules_install
 
 kernel_release=$(make -s -C "$linux_dir" O="$kernel_out" ARCH=arm64 \
-	CROSS_COMPILE="$cross_compile" kernelrelease)
+	CROSS_COMPILE="$cross_compile" CC="$kernel_cc" HOSTCC="$kernel_hostcc" \
+	kernelrelease)
 image="$kernel_out/arch/arm64/boot/Image"
 dtb="$kernel_out/arch/arm64/boot/dts/qcom/sm8650-oneplus-caihong.dtb"
 for root_partlabel in linux userdata; do

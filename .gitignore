@@ -1,4 +1,5 @@
 /build/
+/.ccache/
 /downloads/
 /linux/
 /modules-current/

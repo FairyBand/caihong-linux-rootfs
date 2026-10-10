@@ -21,6 +21,17 @@ image_populator=${IMAGE_POPULATOR:-mount}
 zstd_level=${ZSTD_LEVEL:-10}
 chroot_tool=${CHROOT_TOOL:-arch-chroot}
 use_proxy=${USE_PROXY:-1}
+case $(uname -m) in
+	aarch64|arm64) native_aarch64=1 ;;
+	*) native_aarch64=0 ;;
+esac
+cpu_count=$(nproc)
+if (( cpu_count > 1 )); then
+	zstd_threads_default=$((cpu_count - 1))
+else
+	zstd_threads_default=1
+fi
+zstd_threads=${ZSTD_THREADS:-$zstd_threads_default}
 
 if [[ ! -d $module_tree/lib/modules ]]; then
 	echo "module tree not found: $module_tree/lib/modules" >&2
@@ -168,8 +179,11 @@ if (( EUID != 0 )); then
 	exit 1
 fi
 
-for tool in "$chroot_tool" bsdtar curl mount mountpoint qemu-aarch64-static \
-	rsync sha256sum umount; do
+required_tools=("$chroot_tool" bsdtar curl mount mountpoint nproc rsync sha256sum umount)
+if (( ! native_aarch64 )); then
+	required_tools+=(qemu-aarch64-static)
+fi
+for tool in "${required_tools[@]}"; do
 	if ! command -v "$tool" >/dev/null 2>&1; then
 		echo "missing host tool: $tool" >&2
 		exit 1
@@ -214,6 +228,12 @@ case "$output_format" in
 			echo "ZSTD_LEVEL must be an integer from 1 to 19" >&2
 			exit 1
 		fi
+		case "$zstd_threads" in
+			''|*[!0-9]*|0)
+				echo "ZSTD_THREADS must be a positive integer" >&2
+				exit 1
+				;;
+		esac
 		;;
 	*)
 		echo "OUTPUT_FORMAT must be ext4 or tar" >&2
@@ -369,14 +389,19 @@ if [[ $chroot_tool == chroot ]]; then
 	mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs "$rootfs/run"
 fi
 
-# A static interpreter inside the chroot works with qemu-user-static-binfmt.
-# Testing /usr/bin/true here gives a direct diagnostic instead of a confusing
-# pacman exec-format failure later.
-install -D -m 0755 "$(command -v qemu-aarch64-static)" \
-	"$rootfs/usr/bin/qemu-aarch64-static"
+# AArch64 hosts execute the rootfs directly. Other architectures need a static
+# user-mode interpreter registered with binfmt_misc.
+if (( ! native_aarch64 )); then
+	install -D -m 0755 "$(command -v qemu-aarch64-static)" \
+		"$rootfs/usr/bin/qemu-aarch64-static"
+fi
 if ! "$chroot_tool" "$rootfs" /usr/bin/true; then
-	echo "AArch64 binfmt is not active" >&2
-	echo "install qemu-user-static-binfmt, then restart systemd-binfmt" >&2
+	if (( native_aarch64 )); then
+		echo "unable to execute the AArch64 rootfs natively" >&2
+	else
+		echo "AArch64 binfmt is not active" >&2
+		echo "install qemu-user-static-binfmt, then restart systemd-binfmt" >&2
+	fi
 	exit 1
 fi
 
@@ -588,7 +613,7 @@ chmod 0644 "$rootfs/etc/caihong-rootfs-build-info"
 echo "creating $output"
 if [[ $output_format == tar ]]; then
 	bsdtar --acls --xattrs -cpf - -C "$rootfs" . \
-		| zstd -T0 "-$zstd_level" -o "$temporary"
+		| zstd -T"$zstd_threads" "-$zstd_level" -o "$temporary"
 	zstd -t "$temporary"
 	bsdtar -tf "$temporary" >/dev/null
 else

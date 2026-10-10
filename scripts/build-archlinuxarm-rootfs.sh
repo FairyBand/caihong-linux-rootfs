@@ -196,13 +196,18 @@ if [ "${INCLUDE_BOOT_ARTIFACTS:-0}" = 1 ]; then
 fi
 
 if [ "${CHROOT_INIT:-0}" = 1 ]; then
-	for tool in arch-chroot qemu-aarch64-static; do
+	required_tools='arch-chroot'
+	case $(uname -m) in
+		aarch64|arm64) ;;
+		*) required_tools="$required_tools qemu-aarch64-static" ;;
+	esac
+	for tool in $required_tools; do
 		if ! command -v "$tool" >/dev/null 2>&1; then
 			echo "CHROOT_INIT=1 requires: $tool" >&2
 			exit 1
 		fi
 	done
-	echo "initializing Arch Linux ARM pacman keys through QEMU user-mode"
+	echo "initializing Arch Linux ARM pacman keys"
 	arch-chroot "$target" /usr/bin/pacman-key --init
 	arch-chroot "$target" /usr/bin/pacman-key --populate archlinuxarm
 fi

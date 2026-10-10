@@ -48,13 +48,15 @@ project uses `boot_b` during development and leaves `boot_a` untouched.
 
 ## Building locally
 
-Install an AArch64 cross compiler, Python 3, QEMU user emulation, bsdtar, zstd,
-kmod and alsa-utils. The dependency checkout supplies AOSP `mkbootimg.py`.
-Then run:
+On an AArch64 host, install native GCC, Python 3, bsdtar, zstd, kmod and
+alsa-utils. On other architectures, also install an AArch64 cross compiler and
+QEMU user emulation. The build scripts select the native or cross toolchain
+automatically, and the dependency checkout supplies AOSP `mkbootimg.py`. Then
+run:
 
 ```sh
 scripts/checkout-dependencies.sh
-JOBS=31 scripts/build-kernel-release.sh
+scripts/build-kernel-release.sh
 sudo -E env CHROOT_TOOL=chroot MODULE_TREE="$PWD/modules-current" \
   OUTPUT_FORMAT=tar scripts/package-archlinuxarm-rootfs.sh \
   "release/caihong-rootfs-$(cat release/KERNEL_RELEASE).tar.zst"
