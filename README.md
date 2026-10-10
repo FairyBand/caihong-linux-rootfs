@@ -21,18 +21,18 @@ drivers, firmware and device-specific userspace are stored in the rootfs.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Display, GPU and DP | Mostly working | Internal 3000×2120 display, Adreno GPU, brightness and DP Alt Mode work. Occasional small panel artifacts remain. |
-| Touch and pen | Working | 10-point touch, hover, pressure, drawing, suspend/resume and magnetic pen charging have been tested. Fresh first-time pen pairing needs more regression coverage. |
+| Display and GPU | Mostly working | The internal 3000×2120 display, Adreno GPU and brightness control work. Occasional small panel artifacts remain. |
+| Touch and pen | Working | 10-point touch, hover, pressure, drawing, suspend/resume and magnetic pen charging have been tested. Fresh first-time pen pairing still needs validation. |
 | Pogo keyboard | Mostly working | Keyboard, touchpad and function-key mapping work. A key press can briefly pause the touchpad. |
 | Wi-Fi | Mostly working | Client mode, factory MAC address and concurrent STA/AP mode work. Resume can be slow; the current BDF is a compatible vendor entry rather than a Caihong-specific calibration. |
-| Bluetooth | Working | Scanning, pairing, BLE, HID and pen battery reporting work. BNEP/PAN is not enabled in the current kernel configuration. |
+| Bluetooth | Working | Scanning, pairing, BLE, HID and pen battery reporting work. |
 | Cameras and flash | Mostly working | Front and rear cameras, autofocus, software ISP, calibration, torch and synchronized single flash work. The vendor hardware ISP and complete vendor tuning are unavailable. |
-| Sensors and hall switch | Working | Accelerometer, gyroscope, ambient light, automatic brightness and cover hall switch work. The tablet has no known pressure or proximity sensor. |
+| Sensors and hall switch | Working | Accelerometer, gyroscope, ambient light, automatic brightness and cover hall switch work. |
 | Audio | Working | Microphones and stereo speakers work. Speaker volume is lower than stock Android; Dolby and the complete stock tuning are not included. |
-| USB and external display | Working | USB host/device controllers and DP Alt Mode work. No USB gadget function is enabled by default. |
-| CPU and suspend | Working | CPU frequency scaling and suspend/resume work. The 3.3024 GHz boost is disabled by default; Wi-Fi resume can be slow. |
-| Battery and fast charging | Mostly working | Battery reporting and tested PPS/VOOC charging work. More temperature ranges and a complete low-to-full charging cycle still need coverage. |
-| Storage | Needs maintenance | Storage works, but the current development filesystem has reported ext4 metadata errors and should be checked offline with `e2fsck`. |
+| USB and external display | Working | USB host/device controllers and DP Alt Mode work. |
+| CPU and suspend | Working | CPU frequency scaling and suspend/resume work. The 3.3024 GHz boost is disabled by default. |
+| Battery and fast charging | Mostly working | Battery reporting and tested PPS/VOOC charging work. Other charging protocols are not yet supported. |
+| Storage | Working | Storage works; MCQ queues and the complete frequency table are not yet configured. |
 
 ## Release contents
 
