@@ -56,6 +56,8 @@ def main() -> int:
     for root, manifest in boot_manifests.items():
         if manifest.get("root_partlabel") != root:
             raise RuntimeError(f"boot manifest root mismatch for {root}")
+    kernel_package_name = (release_dir / "LINUX_CAIHONG_PACKAGE").read_text().strip()
+    kernel_package = release_dir / kernel_package_name
 
     if assets.exists():
         shutil.rmtree(assets)
@@ -70,7 +72,9 @@ def main() -> int:
         f"sm8650-oneplus-caihong-{kernel_release}.dtb",
         f"config-{kernel_release}",
         "KERNEL_RELEASE",
+        "LINUX_CAIHONG_PACKAGE",
         "SHA256SUMS.boot",
+        kernel_package_name,
     ):
         target = assets / name
         shutil.copy2(release_dir / name, target)
@@ -99,6 +103,11 @@ def main() -> int:
         "device": "OnePlus Pad Pro (caihong)",
         "kernel_release": kernel_release,
         "boot": boot_manifests,
+        "pacman_package": {
+            "name": kernel_package_name,
+            "bytes": kernel_package.stat().st_size,
+            "sha256": sha256(kernel_package),
+        },
         "rootfs": {
             "reconstructed_name": rootfs.name,
             "bytes": rootfs.stat().st_size,

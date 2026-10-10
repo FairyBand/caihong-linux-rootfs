@@ -40,6 +40,13 @@ if [ -z "$slot" ]; then
 	exit 1
 fi
 
+install -d -m 0755 /run/caihong
+slot_file=/run/caihong/boot-slot
+slot_file_new=$slot_file.new
+printf '%s\n' "$slot" > "$slot_file_new"
+chmod 0644 "$slot_file_new"
+mv -f -- "$slot_file_new" "$slot_file"
+
 "$qbootctl" -m "$slot"
 
 if ! "$qbootctl" -n "$slot" 2>/dev/null | grep -q 'is marked successful$'; then

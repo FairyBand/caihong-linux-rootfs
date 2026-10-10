@@ -36,6 +36,15 @@ if (( ${#module_releases[@]} != 1 )); then
 	exit 1
 fi
 kernel_release=${module_releases[0]}
+kernel_package=${KERNEL_PACKAGE:-}
+if [[ -z $kernel_package && -f $project_dir/release/LINUX_CAIHONG_PACKAGE ]]; then
+	kernel_package=$project_dir/release/$(<"$project_dir/release/LINUX_CAIHONG_PACKAGE")
+fi
+if [[ ! -f $kernel_package ]]; then
+	echo "linux-caihong package not found: ${kernel_package:-unset}" >&2
+	exit 1
+fi
+kernel_package=$(cd -- "$(dirname -- "$kernel_package")" && pwd)/${kernel_package##*/}
 
 if [[ ! -d $ssc_bundle ]]; then
 	echo "missing release SSC bundle: $ssc_bundle" >&2
@@ -528,23 +537,21 @@ rsync -a --exclude=SOURCE.md --exclude=SHA256SUMS \
 "$project_dir/scripts/build-caihong-audioreach-topology.sh" \
 	"$rootfs/usr/lib/firmware/qcom/sm8650/SM8650-MTP-tplg.bin"
 
-# The release boot image intentionally has no initramfs. Install the exact
-# dependency closure for this kernel in the rootfs, and retain caihong.conf so
-# systemd can load board modules after the direct root mount. The pen charger
-# uses a bounded on-demand loader, so keep a release-matched copy at its stable
-# service path as well.
-echo "installing release-matched kernel modules"
-CAIHONG_EXPECTED_RELEASE="$kernel_release" \
-	"$project_dir/scripts/install-caihong-modules.sh" \
-	"$module_tree" "$rootfs"
-pen_module=$(find "$rootfs/usr/lib/modules/$kernel_release" -type f \
-	-name caihong_pen_power.ko -print -quit)
-if [[ -z $pen_module ]]; then
-	echo "installed module tree is missing caihong_pen_power.ko" >&2
+# Register the kernel and its dependency-closed module tree with pacman.  The
+# package script updates the stable pen-module copy but is explicitly barred
+# from touching host block devices while this offline rootfs is constructed.
+echo "installing linux-caihong pacman package"
+install -m 0644 "$kernel_package" "$rootfs/tmp/linux-caihong.pkg.tar.zst"
+rm -rf -- "$rootfs/usr/lib/modules"
+"$chroot_tool" "$rootfs" "${chroot_env[@]}" \
+	env CAIHONG_SKIP_BOOT_FLASH=1 \
+	pacman -U --noconfirm /tmp/linux-caihong.pkg.tar.zst
+if ! "$chroot_tool" "$rootfs" "${chroot_env[@]}" \
+	pacman -Qq linux-caihong >/dev/null; then
+	echo "linux-caihong was not registered in the rootfs package database" >&2
 	exit 1
 fi
-install -D -m 0644 "$pen_module" \
-	"$rootfs/usr/local/lib/caihong/caihong_pen_power.ko"
+rm -f -- "$rootfs/tmp/linux-caihong.pkg.tar.zst"
 
 rm -f -- "$rootfs/usr/bin/qemu-aarch64-static"
 rm -f -- "$rootfs/etc/resolv.conf"
@@ -562,6 +569,7 @@ unmount_rootfs
 	printf 'boot_kernel=android-boot-v2-direct-root\n'
 	printf 'package_mirror=%s\n' "$mirror"
 	printf 'kernel_release=%s\n' "$kernel_release"
+	printf 'kernel_package=%s\n' "${kernel_package##*/}"
 	printf 'ssc_bundle_version=%s\n' "$(head -n 1 "$ssc_bundle/VERSION")"
 	if [[ -f $ssc_bundle/SHA256SUMS ]]; then
 		printf 'ssc_manifest_sha256=%s\n' \

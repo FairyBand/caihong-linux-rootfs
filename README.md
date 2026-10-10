@@ -30,6 +30,8 @@ whose kernel release does not match the boot image.
   `userdata` root partition.
 - `caihong-rootfs-<kernel-release>.tar.zst`: rootfs archive. Archives at or
   above 2 GiB are published as ordered `.part-00`, `.part-01`, … files.
+- `linux-caihong-<version>-1-aarch64.pkg.tar.zst`: pacman package containing
+  both direct-root boot images and the matching kernel modules.
 - `release-manifest.json`: source revisions, sizes and SHA-256 digests.
 - `SHA256SUMS`: digest for every downloadable asset.
 
@@ -61,6 +63,17 @@ sudo -E env CHROOT_TOOL=chroot MODULE_TREE="$PWD/modules-current" \
 GitHub Actions performs the same build for `v*` tags and manual release runs.
 `dependencies.env` follows the stable component branches. Each release records
 the exact commits resolved during that build in `release-manifest.json`.
+
+On an installed Caihong system, upgrade the kernel and modules with:
+
+```sh
+sudo pacman -U linux-caihong-*-aarch64.pkg.tar.zst
+```
+
+The package reads the slot recorded during the current boot, selects the boot
+image matching the actual `linux` or `userdata` root partition, writes only
+that running slot, and verifies the written bytes. It does not change the A/B
+active, bootable, or successful flags.
 
 ## Licensing
 

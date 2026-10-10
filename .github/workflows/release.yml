@@ -65,6 +65,7 @@ jobs:
           kernel_release=$(cat release/KERNEL_RELEASE)
           sudo -E env \
             CHROOT_TOOL=chroot \
+            KERNEL_PACKAGE="$PWD/release/$(cat release/LINUX_CAIHONG_PACKAGE)" \
             MODULE_TREE="$PWD/modules-current" \
             OUTPUT_FORMAT=tar \
             USE_PROXY=0 \

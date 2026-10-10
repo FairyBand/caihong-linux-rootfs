@@ -59,6 +59,11 @@ usr/local/sbin/caihong-pen-pair
 usr/local/sbin/caihong-slot
 usr/local/sbin/qbootctl
 usr/share/applications/caihong-switch-to-android.desktop
+usr/lib/linux-caihong/boot-linux.img
+usr/lib/linux-caihong/boot-userdata.img
+usr/lib/linux-caihong/install-current-slot
+usr/lib/linux-caihong/kernel-release
+usr/lib/modules-load.d/caihong.conf
 usr/bin/cam
 usr/bin/plasma-camera
 usr/bin/qcam
@@ -156,6 +161,32 @@ for path in $required_paths; do
 		failed=1
 	fi
 done
+
+package_db=$(find "$target/var/lib/pacman/local" -mindepth 1 -maxdepth 1 \
+	-type d -name 'linux-caihong-*' -print -quit 2>/dev/null || true)
+if [ -z "$package_db" ] || ! grep -qx 'linux-caihong' "$package_db/desc"; then
+	echo "linux-caihong is not registered in the pacman database" >&2
+	failed=1
+fi
+if [ ! -d "$target/usr/lib/linux-caihong/modules/$kernel_release" ]; then
+	echo "linux-caihong private module payload is missing" >&2
+	failed=1
+fi
+private_pen=$(find "$target/usr/lib/linux-caihong/modules/$kernel_release" \
+	-type f -name caihong_pen_power.ko -print -quit)
+active_pen=$(find "$target/usr/lib/modules/$kernel_release" \
+	-type f -name caihong_pen_power.ko -print -quit)
+if [ -z "$private_pen" ] || [ -z "$active_pen" ] || \
+	[ "$(stat -c '%i' "$private_pen" 2>/dev/null)" != \
+	"$(stat -c '%i' "$active_pen" 2>/dev/null)" ]; then
+	echo "linux-caihong module payload was not hard-linked into the active tree" >&2
+	failed=1
+fi
+if ! cmp -s "$target/usr/lib/linux-caihong/kernel-release" \
+	<(printf '%s\n' "$kernel_release"); then
+	echo "linux-caihong package release does not match its module tree" >&2
+	failed=1
+fi
 
 if ! grep -qx 'AutoEnable=true' "$target/etc/bluetooth/main.conf"; then
 	echo "BlueZ controller auto-enable policy is missing" >&2

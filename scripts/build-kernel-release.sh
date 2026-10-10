@@ -76,12 +76,17 @@ for root_partlabel in linux userdata; do
 		--manifest "$manifest"
 done
 
+"$project_dir/scripts/build-linux-caihong-package.sh" \
+	"$module_tree" "$release_dir"
+kernel_package=$(cat "$release_dir/LINUX_CAIHONG_PACKAGE")
+
 install -m 0644 "$image" "$release_dir/Image-$kernel_release"
 install -m 0644 "$dtb" "$release_dir/sm8650-oneplus-caihong-$kernel_release.dtb"
 install -m 0644 "$kernel_out/.config" "$release_dir/config-$kernel_release"
 printf '%s\n' "$kernel_release" > "$release_dir/KERNEL_RELEASE"
 sha256sum "$release_dir"/caihong-boot-linux-"$kernel_release".img \
 	"$release_dir"/caihong-boot-userdata-"$kernel_release".img \
+	"$release_dir/$kernel_package" \
 	"$release_dir"/Image-"$kernel_release" \
 	"$release_dir"/sm8650-oneplus-caihong-"$kernel_release".dtb \
 	> "$release_dir/SHA256SUMS.boot"
