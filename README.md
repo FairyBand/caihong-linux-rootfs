@@ -6,17 +6,6 @@ This repository builds an Arch Linux ARM userspace, matching mainline Linux
 kernel, and Android boot images for the OnePlus Pad Pro (`caihong`). It is a
 development release for this device; review the status table before installing.
 
-The boot images use Android boot image v2 and contain only the Linux `Image`
-and the Caihong DTB. There is no ramdisk. The dual-boot image mounts the GPT
-partition named `linux` directly:
-
-```text
-root=PARTLABEL=linux rootfstype=ext4 rootwait rw
-```
-
-The single-system image mounts `PARTLABEL=userdata` instead. All loadable
-drivers, firmware and device-specific userspace are stored in the rootfs.
-
 ## Device status
 
 | Area | Status | Notes |
