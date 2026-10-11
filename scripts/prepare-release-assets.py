@@ -9,11 +9,20 @@ import argparse
 import hashlib
 import json
 import shutil
+import struct
 from pathlib import Path
 
 
 PART_BYTES = 1900 * 1024 * 1024
 DIRECT_BYTES = 2000 * 1024 * 1024
+COPY_BYTES = 8 * 1024 * 1024
+SPARSE_HEADER = struct.Struct("<I4H4I")
+SPARSE_CHUNK_HEADER = struct.Struct("<2H2I")
+SPARSE_MAGIC = 0xED26FF3A
+SPARSE_CHUNK_RAW = 0xCAC1
+SPARSE_CHUNK_FILL = 0xCAC2
+SPARSE_CHUNK_DONT_CARE = 0xCAC3
+SPARSE_CHUNK_CRC32 = 0xCAC4
 
 
 def sha256(path: Path) -> str:
@@ -35,6 +44,79 @@ def load_dependencies(path: Path) -> dict[str, str]:
     return result
 
 
+def inspect_android_sparse(path: Path) -> dict[str, int | str]:
+    """Validate an Android sparse image and return release metadata."""
+    with path.open("rb") as source:
+        header = source.read(SPARSE_HEADER.size)
+        if len(header) != SPARSE_HEADER.size:
+            raise RuntimeError(f"truncated Android sparse header: {path}")
+        (
+            magic,
+            major,
+            minor,
+            file_header_bytes,
+            chunk_header_bytes,
+            block_bytes,
+            total_blocks,
+            total_chunks,
+            _checksum,
+        ) = SPARSE_HEADER.unpack(header)
+        if magic != SPARSE_MAGIC or major != 1:
+            raise RuntimeError(f"unsupported Android sparse image: {path}")
+        if file_header_bytes < SPARSE_HEADER.size:
+            raise RuntimeError(f"invalid Android sparse file header size: {path}")
+        if chunk_header_bytes < SPARSE_CHUNK_HEADER.size:
+            raise RuntimeError(f"invalid Android sparse chunk header size: {path}")
+        if block_bytes == 0 or block_bytes % 4:
+            raise RuntimeError(f"invalid Android sparse block size: {path}")
+        source.seek(file_header_bytes)
+
+        output_blocks = 0
+        for _ in range(total_chunks):
+            chunk_header = source.read(chunk_header_bytes)
+            if len(chunk_header) != chunk_header_bytes:
+                raise RuntimeError(f"truncated Android sparse chunk header: {path}")
+            chunk_type, _reserved, chunk_blocks, total_bytes = (
+                SPARSE_CHUNK_HEADER.unpack_from(chunk_header)
+            )
+            if total_bytes < chunk_header_bytes:
+                raise RuntimeError(f"invalid Android sparse chunk size: {path}")
+            payload_bytes = total_bytes - chunk_header_bytes
+            expected_payload = {
+                SPARSE_CHUNK_RAW: chunk_blocks * block_bytes,
+                SPARSE_CHUNK_FILL: 4,
+                SPARSE_CHUNK_DONT_CARE: 0,
+                SPARSE_CHUNK_CRC32: 4,
+            }.get(chunk_type)
+            if expected_payload is None or payload_bytes != expected_payload:
+                raise RuntimeError(f"invalid Android sparse chunk payload: {path}")
+            source.seek(payload_bytes, 1)
+            output_blocks += chunk_blocks
+
+        if output_blocks != total_blocks or source.tell() != path.stat().st_size:
+            raise RuntimeError(f"inconsistent Android sparse image length: {path}")
+
+    return {
+        "format": "android-sparse-ext4",
+        "sparse_version": f"{major}.{minor}",
+        "block_bytes": block_bytes,
+        "logical_bytes": total_blocks * block_bytes,
+        "filesystem_label": "linux",
+    }
+
+
+def copy_part(source, target: Path, limit: int) -> int:
+    copied = 0
+    with target.open("wb") as destination:
+        while copied < limit:
+            block = source.read(min(COPY_BYTES, limit - copied))
+            if not block:
+                break
+            destination.write(block)
+            copied += len(block)
+    return copied
+
+
 def write_release_notes(
     path: Path,
     kernel_release: str,
@@ -42,6 +124,7 @@ def write_release_notes(
     rootfs: Path,
     rootfs_assets: list[Path],
     dependencies: dict[str, str],
+    rootfs_metadata: dict[str, int | str],
 ) -> None:
     checksums = "".join(f"{sha256(asset)}  {asset.name}\n" for asset in assets)
     source_lines = []
@@ -56,16 +139,31 @@ def write_release_notes(
             )
 
     if len(rootfs_assets) == 1 and rootfs_assets[0].name == rootfs.name:
-        rootfs_instructions = f"Use `{rootfs.name}` directly."
+        reconstruction = f"Use `{rootfs.name}` directly."
     else:
         parts = " ".join(asset.name for asset in rootfs_assets)
-        rootfs_instructions = (
+        reconstruction = (
             "GitHub limits each Release asset to less than 2 GiB, so the rootfs "
             "is split without recompression. Reconstruct it in part-number order:\n\n"
             "```sh\n"
             f"cat {parts} > {rootfs.name}\n"
             "```"
         )
+
+    if rootfs_metadata["format"] == "android-sparse-ext4":
+        rootfs_instructions = (
+            f"{reconstruction}\n\n"
+            "The reconstructed file is an Android sparse ext4 image and can be "
+            "flashed directly. Select `linux` for dual boot or `userdata` for a "
+            "single-system installation:\n\n"
+            "```sh\n"
+            "ROOT_PARTITION=linux\n"
+            f"fastboot flash \"$ROOT_PARTITION\" {rootfs.name}\n"
+            "```\n\n"
+            f"Its logical filesystem size is {rootfs_metadata['logical_bytes']} bytes."
+        )
+    else:
+        rootfs_instructions = reconstruction
 
     path.write_text(
         f"""Caihong Linux release for the OnePlus Pad Pro.
@@ -89,7 +187,7 @@ fastboot flash "boot_${{LINUX_SLOT}}" caihong-boot-linux-{kernel_release}.img
 
 {rootfs_instructions}
 
-Reconstructed rootfs SHA-256:
+Complete rootfs image SHA-256:
 
 ```text
 {sha256(rootfs)}  {rootfs.name}
@@ -118,6 +216,9 @@ def main() -> int:
 
     release_dir = args.release_dir.resolve()
     rootfs = args.rootfs.resolve()
+    if not rootfs.name.endswith(".ext4.sparse.img"):
+        raise RuntimeError("release rootfs must be an .ext4.sparse.img file")
+    rootfs_metadata = inspect_android_sparse(rootfs)
     assets = args.assets.resolve()
     kernel_release = (release_dir / "KERNEL_RELEASE").read_text().strip()
     boot_manifests = {
@@ -155,11 +256,11 @@ def main() -> int:
         with rootfs.open("rb") as source:
             index = 0
             while True:
-                payload = source.read(PART_BYTES)
-                if not payload:
-                    break
                 target = assets / f"{rootfs.name}.part-{index:02d}"
-                target.write_bytes(payload)
+                copied_bytes = copy_part(source, target, PART_BYTES)
+                if copied_bytes == 0:
+                    target.unlink()
+                    break
                 rootfs_assets.append(target)
                 index += 1
     copied.extend(rootfs_assets)
@@ -179,6 +280,7 @@ def main() -> int:
             "bytes": rootfs.stat().st_size,
             "sha256": rootfs_hash,
             "assets": [path.name for path in rootfs_assets],
+            **rootfs_metadata,
         },
         "dependencies": dependencies,
     }
@@ -193,6 +295,7 @@ def main() -> int:
         rootfs,
         rootfs_assets,
         dependencies,
+        rootfs_metadata,
     )
     for path in copied:
         if path.stat().st_size >= 2 * 1024 * 1024 * 1024:

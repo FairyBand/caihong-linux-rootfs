@@ -38,9 +38,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            alsa-utils bc bison build-essential ccache curl dwarves flex git \
-            kmod libarchive-tools libelf-dev libssl-dev python3 rsync \
-            shellcheck zstd
+            alsa-utils android-sdk-libsparse-utils bc bison build-essential \
+            ccache curl dwarves e2fsprogs flex git kmod libarchive-tools \
+            libelf-dev libssl-dev python3 rsync shellcheck zstd
 
       - name: Restore package downloads
         uses: actions/cache@v4
@@ -99,13 +99,12 @@ jobs:
             KERNEL_PACKAGE="$PWD/release/$(cat release/LINUX_CAIHONG_PACKAGE)" \
             LIBCAMERA_BUILD_JOBS="$jobs" \
             MODULE_TREE="$PWD/modules-current" \
-            OUTPUT_FORMAT=tar \
+            OUTPUT_FORMAT=ext4 \
             PLASMA_CAMERA_BUILD_JOBS="$jobs" \
+            SPARSE_IMAGE=1 \
             USE_PROXY=0 \
-            ZSTD_LEVEL=15 \
-            ZSTD_THREADS="$jobs" \
             scripts/package-archlinuxarm-rootfs.sh \
-            "release/caihong-rootfs-$kernel_release.tar.zst"
+            "release/caihong-rootfs-$kernel_release.ext4.sparse.img"
           sudo chown -R "$USER:$USER" release build/pacman-cache downloads
 
       - name: Prepare release assets
@@ -113,7 +112,7 @@ jobs:
           kernel_release=$(cat release/KERNEL_RELEASE)
           scripts/prepare-release-assets.py \
             --release-dir release \
-            --rootfs "release/caihong-rootfs-$kernel_release.tar.zst" \
+            --rootfs "release/caihong-rootfs-$kernel_release.ext4.sparse.img" \
             --dependencies build/dependencies.resolved.env \
             --assets release/assets \
             --notes release/RELEASE_NOTES.md
