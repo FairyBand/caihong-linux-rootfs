@@ -309,6 +309,16 @@ if [ -e \
 	failed=1
 fi
 
+if grep -q '^ConditionPathExists=.*/kwinoutputconfig.json$' \
+	"$target/etc/systemd/system/caihong-fix-kwin-brightness.service" 2>/dev/null || \
+	! grep -q '"connectorName": "DSI-1"' \
+	"$target/usr/local/sbin/caihong-fix-kwin-brightness" 2>/dev/null || \
+	! grep -q 'output\["automaticBrightness"\] = True' \
+	"$target/usr/local/sbin/caihong-fix-kwin-brightness" 2>/dev/null; then
+	echo "automatic brightness is not seeded before the first Plasma session" >&2
+	failed=1
+fi
+
 required_packages='bluez bluez-utils openssh networkmanager hostapd dnsmasq nftables pipewire
 pipewire-pulse wireplumber alsa-utils iio-sensor-proxy libssc libcamera
 libcamera-ipa libcamera-tools gst-plugin-libcamera plasma-camera krita firefox

@@ -2,7 +2,6 @@
 Description=Seed the stock-derived KWin automatic brightness curve
 After=local-fs.target
 Before=sddm.service
-ConditionPathExists=/home/alarm/.config/kwinoutputconfig.json
 
 [Service]
 Type=oneshot

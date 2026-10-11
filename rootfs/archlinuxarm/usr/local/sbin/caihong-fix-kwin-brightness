@@ -17,7 +17,47 @@ marker=$state_dir/kwin-brightness-v1
 # odm/overlay/OPlusFrameworksResTarget.apk (1..40000 lux, 6..800 nits).
 curve='[0.0, 8.96, 30.8, 71.4, 512.0, 952.5, 1304.0, 1651.5, 1867.3333333333333, 7030.0, 40000.0]'
 
-[ -f "$config" ] || exit 0
+# KWin creates this file only after the first Plasma session has started.  Seed
+# a minimal connector-only configuration before SDDM so automatic brightness
+# is active in that first session.  KWin fills in the mode, scale and generated
+# output UUID when it loads the file.
+if [ ! -f "$config" ]; then
+	install -d -o alarm -g alarm -m 0700 "${config%/*}"
+	cat > "$config" <<'EOF'
+[
+    {
+        "data": [
+            {
+                "connectorName": "DSI-1"
+            }
+        ],
+        "name": "outputs"
+    },
+    {
+        "data": [
+            {
+                "lidClosed": false,
+                "outputs": [
+                    {
+                        "enabled": true,
+                        "outputIndex": 0,
+                        "position": {
+                            "x": 0,
+                            "y": 0
+                        },
+                        "priority": 1,
+                        "replicationSource": ""
+                    }
+                ]
+            }
+        ],
+        "name": "setups"
+    }
+]
+EOF
+	chown alarm:alarm "$config"
+	chmod 0644 "$config"
+fi
 
 mkdir -p "$state_dir"
 backup=$state_dir/kwinoutputconfig.json.before-brightness-v1
@@ -39,12 +79,14 @@ with open(config, "r", encoding="utf-8") as stream:
     document = json.load(stream)
 
 changed = False
+found = False
 for section in document:
     if section.get("name") != "outputs":
         continue
     for output in section.get("data", []):
         if output.get("connectorName") != "DSI-1":
             continue
+        found = True
         existing = output.get("autoBrightnessCurve")
         # A previous migration may have raced with KWin while it was exiting.
         # Reapply only when the persisted curve is still the old narrow model;
@@ -59,8 +101,11 @@ for section in document:
         output["automaticBrightness"] = True
         changed = True
 
-if not changed:
+if not found:
     print("DSI-1 was not present; leaving KWin configuration unchanged", file=sys.stderr)
+    raise SystemExit(0)
+if not changed:
+    print("Stock-derived KWin DSI-1 automatic brightness curve is already configured")
     raise SystemExit(0)
 
 mode = stat.S_IMODE(os.stat(config).st_mode)

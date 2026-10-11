@@ -22,7 +22,7 @@ drivers, firmware and device-specific userspace are stored in the rootfs.
 | Area | Status | Notes |
 | --- | --- | --- |
 | Display and GPU | Mostly working | The internal 3000×2120 display, Adreno GPU and brightness control work. Occasional small panel artifacts remain. |
-| Touch and pen | Working | 10-point touch, hover, pressure, drawing, suspend/resume and magnetic pen charging have been tested. Fresh first-time pen pairing still needs validation. |
+| Touch and pen | Working | 10-point touch, hover, pressure, drawing, suspend/resume, magnetic pen charging and clean first-time pairing have been tested. |
 | Pogo keyboard | Mostly working | Keyboard, touchpad and function-key mapping work. A key press can briefly pause the touchpad. |
 | Wi-Fi | Mostly working | Client mode, factory MAC address and concurrent STA/AP mode work. Resume can be slow; the current BDF is a compatible vendor entry rather than a Caihong-specific calibration. |
 | Bluetooth | Working | Scanning, pairing, BLE, HID and pen battery reporting work. |
