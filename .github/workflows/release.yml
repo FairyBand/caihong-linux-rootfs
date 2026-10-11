@@ -131,6 +131,19 @@ jobs:
           fi
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" release/assets/* --clobber
+            declare -A current_assets=()
+            for path in release/assets/*; do
+              current_assets["${path##*/}"]=1
+            done
+            while IFS= read -r asset; do
+              case "$asset" in
+                caihong-boot-*|caihong-rootfs-*|linux-caihong-*)
+                  if [[ -z ${current_assets[$asset]+present} ]]; then
+                    gh release delete-asset "$tag" "$asset" --yes
+                  fi
+                  ;;
+              esac
+            done < <(gh release view "$tag" --json assets --jq '.assets[].name')
             gh release edit "$tag" \
               --title "Caihong Linux $tag" \
               --notes-file release/RELEASE_NOTES.md
