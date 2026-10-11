@@ -36,6 +36,7 @@ REQUIRED_MODULES = (
     "gt9772",
     "ath12k_wifi7",
     "bnep",
+    "rfcomm",
     "hidp",
     "qcom_q6v5_pas",
 )
