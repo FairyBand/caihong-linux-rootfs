@@ -29,67 +29,102 @@ development release for this device; review the status table before installing.
   root partition.
 - `caihong-boot-userdata-<kernel-release>.img`: single-system image using the
   `userdata` root partition.
-- `caihong-rootfs-<kernel-release>.tar.zst`: rootfs archive. Archives at or
-  above 2 GiB are published as ordered `.part-00`, `.part-01`, … files.
+- `caihong-rootfs-<kernel-release>.ext4.sparse.img`: Android sparse ext4 rootfs
+  image that fastboot can flash directly. Images at or above 2 GiB are
+  published as ordered `.part-00`, `.part-01`, … files.
 - `linux-caihong-<version>-1-aarch64.pkg.tar.zst`: pacman package containing
   both direct-root boot images and the matching kernel modules.
 
-The Release description records the SHA-256 digests, reconstructed rootfs
-digest and resolved source revisions. No ZIP archive is used for installable
-assets.
+The Release description records the SHA-256 digests, complete reconstructed
+rootfs image digest, logical filesystem size and resolved source revisions. No
+ZIP archive is used for installable assets.
 
 ## Installation
 
-An unlocked bootloader and a Linux environment that can access the target
-partition are required. Back up any data on the selected partition first.
+Follow these steps exactly. Repartitioning or flashing the wrong target can
+erase Android and other device data.
 
-Choose one layout:
+### Prerequisites
 
-- **Dual boot:** use an existing GPT partition whose `PARTLABEL` is `linux`,
-  and use the `caihong-boot-linux-*.img` image.
-- **Single system:** use the existing `userdata` partition and the
-  `caihong-boot-userdata-*.img` image. Formatting this partition deletes
-  Android user data.
+- The bootloader is unlocked.
+- `adb` and `fastboot` are installed on the host computer.
+- Important Android and internal-storage data has been backed up.
+- The boot image and rootfs image come from the same release.
+- A dual-boot installation has a GPT partition named `linux`. If it already
+  exists, skip the partition-creation step below.
 
-Download the selected boot image and rootfs files. Compare their digests with
-the SHA-256 values in the Release description:
+### Prepare the files
 
-```sh
-sha256sum caihong-boot-*.img caihong-rootfs-*.tar.zst.part-*
-```
+Download one boot image and all rootfs image parts from the Release:
 
-If the rootfs is split, reconstruct it in part-number order:
+- Dual boot uses `caihong-boot-linux-<kernel-release>.img`.
+- Single system uses `caihong-boot-userdata-<kernel-release>.img`.
+- Both layouts use the same
+  `caihong-rootfs-<kernel-release>.ext4.sparse.img`.
 
-```sh
-cat caihong-rootfs-*.tar.zst.part-* > caihong-rootfs.tar.zst
-```
-
-From Linux or a suitable recovery environment, identify the target by its GPT
-partition name. Set `ROOTFS` to the downloaded archive, or to the reconstructed
-`caihong-rootfs.tar.zst` shown above. Replace `/dev/TARGET` only after checking
-the output:
+Compare every downloaded file with the SHA-256 values in the Release
+description. The rootfs parts are not individually flashable. Reconstruct the
+complete sparse image in part-number order, then compare its SHA-256 with the
+complete-image digest in the Release description:
 
 ```sh
-lsblk -o PATH,SIZE,FSTYPE,LABEL,PARTLABEL
-TARGET=/dev/TARGET
-ROOTFS=caihong-rootfs.tar.zst
-
-sudo umount "$TARGET" 2>/dev/null || true
-sudo mkfs.ext4 -F -L linux "$TARGET"
-sudo mkdir -p /mnt/caihong-rootfs
-sudo mount "$TARGET" /mnt/caihong-rootfs
-sudo bsdtar --numeric-owner --acls --xattrs -xpf "$ROOTFS" \
-  -C /mnt/caihong-rootfs
-sudo sync
-sudo umount /mnt/caihong-rootfs
+sha256sum caihong-boot-*.img caihong-rootfs-*.ext4.sparse.img.part-*
+cat caihong-rootfs-*.ext4.sparse.img.part-* \
+  > caihong-rootfs.ext4.sparse.img
+sha256sum caihong-rootfs.ext4.sparse.img
 ```
 
-The filesystem label `linux` is used by the first-boot grow service; the boot
-image selects the root filesystem by the GPT `PARTLABEL` described above.
+If the Release contains one unsplit `.ext4.sparse.img`, use it directly and
+skip the `cat` command.
 
-Enter fastboot mode and inspect the current slot. Select the slot that will
-contain Linux explicitly; do not overwrite the slot that you intend to keep
-for Android:
+### Dual boot
+
+#### 1. Create or verify the Linux partition
+
+Skip this step when `linux` already exists. Otherwise, boot a recovery that can
+run `parted`. Use the recovery's copy, or push a compatible static binary:
+
+```sh
+adb reboot recovery
+adb push /path/to/parted /tmp/parted
+adb shell
+chmod +x /tmp/parted
+/tmp/parted /dev/block/sda
+```
+
+At the `parted` prompt, inspect the real layout first:
+
+```text
+unit GB
+print
+```
+
+The exact partition number and boundaries vary with device capacity and the
+existing layout. Keep the original `userdata` start unchanged, choose a split
+point that leaves enough space for both systems, and ensure `linux` is larger
+than the rootfs logical size recorded in the Release. Replace every value in
+angle brackets before running these destructive commands:
+
+```text
+rm <userdata-number>
+mkpart userdata ext4 <original-userdata-start> <linux-start>
+mkpart linux ext4 <linux-start> 100%
+print
+quit
+```
+
+Confirm that the new partition names are exactly `userdata` and `linux`, then
+return to the bootloader:
+
+```sh
+exit
+adb reboot bootloader
+```
+
+#### 2. Flash the images
+
+Choose the Linux slot explicitly. The following example uses slot B; use A
+instead when that is the slot reserved for Linux:
 
 ```sh
 fastboot devices
@@ -97,19 +132,45 @@ fastboot getvar current-slot
 
 LINUX_SLOT=b
 BOOT=caihong-boot-linux-<kernel-release>.img
+ROOTFS=caihong-rootfs.ext4.sparse.img
+
 fastboot erase "dtbo_${LINUX_SLOT}"
 fastboot flash "boot_${LINUX_SLOT}" "$BOOT"
+fastboot flash linux "$ROOTFS"
 fastboot --set-active="$LINUX_SLOT"
 fastboot reboot
 ```
 
-Erase only the `dtbo` partition for the slot selected for Linux. The Caihong
-DTB is already included in the boot image; a stale Android DTBO from that slot
-must not be applied to Linux. Keep the Android slot's `dtbo` partition intact.
+Erase only the DTBO belonging to the selected Linux slot. The Caihong DTB is
+already inside the boot image; keep the Android slot's DTBO intact.
 
-Use the `userdata` boot image in `BOOT` for a single-system installation. On a
-successful first boot, the system records and marks the actual running slot as
-successful.
+### Single system
+
+This overwrites `userdata` and deletes Android user data. It does not require a
+separate `linux` partition:
+
+```sh
+adb reboot bootloader
+fastboot devices
+fastboot getvar current-slot
+
+LINUX_SLOT=b
+BOOT=caihong-boot-userdata-<kernel-release>.img
+ROOTFS=caihong-rootfs.ext4.sparse.img
+
+fastboot erase "dtbo_${LINUX_SLOT}"
+fastboot flash "boot_${LINUX_SLOT}" "$BOOT"
+fastboot flash userdata "$ROOTFS"
+fastboot --set-active="$LINUX_SLOT"
+fastboot reboot
+```
+
+### First boot
+
+The image contains an ext4 filesystem labeled `linux`. On the first successful
+boot, `caihong-grow-rootfs.service` expands it to fill `linux` or `userdata`,
+and `caihong-mark-boot-successful.service` marks the actual running slot
+successful. No manual `resize2fs` command is required.
 
 ## Default accounts
 
@@ -166,17 +227,18 @@ bootable, or successful flags.
 
 ## Building locally
 
-On an AArch64 host, install native GCC, Python 3, bsdtar, zstd, kmod and
-alsa-utils. On other architectures, also install an AArch64 cross compiler and
-QEMU user emulation. The scripts select the native or cross toolchain
-automatically:
+On an AArch64 host, install native GCC, Python 3, bsdtar, zstd, kmod,
+alsa-utils, e2fsprogs and Android sparse-image tools (`img2simg`). On other
+architectures, also install an AArch64 cross compiler and QEMU user emulation.
+The scripts select the native or cross toolchain automatically:
 
 ```sh
 scripts/checkout-dependencies.sh
 scripts/build-kernel-release.sh
 sudo -E env CHROOT_TOOL=chroot MODULE_TREE="$PWD/modules-current" \
-  OUTPUT_FORMAT=tar scripts/package-archlinuxarm-rootfs.sh \
-  "release/caihong-rootfs-$(cat release/KERNEL_RELEASE).tar.zst"
+  OUTPUT_FORMAT=ext4 SPARSE_IMAGE=1 \
+  scripts/package-archlinuxarm-rootfs.sh \
+  "release/caihong-rootfs-$(cat release/KERNEL_RELEASE).ext4.sparse.img"
 ```
 
 GitHub Actions performs native AArch64 builds and persists ccache between
