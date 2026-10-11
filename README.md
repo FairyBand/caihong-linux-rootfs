@@ -108,10 +108,15 @@ fastboot getvar current-slot
 
 LINUX_SLOT=b
 BOOT=caihong-boot-linux-<kernel-release>.img
+fastboot erase "dtbo_${LINUX_SLOT}"
 fastboot flash "boot_${LINUX_SLOT}" "$BOOT"
 fastboot --set-active="$LINUX_SLOT"
 fastboot reboot
 ```
+
+Erase only the `dtbo` partition for the slot selected for Linux. The Caihong
+DTB is already included in the boot image; a stale Android DTBO from that slot
+must not be applied to Linux. Keep the Android slot's `dtbo` partition intact.
 
 Use the `userdata` boot image in `BOOT` for a single-system installation. On a
 successful first boot, the system records and marks the actual running slot as

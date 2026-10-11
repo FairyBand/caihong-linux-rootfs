@@ -102,10 +102,15 @@ fastboot getvar current-slot
 
 LINUX_SLOT=b
 BOOT=caihong-boot-linux-<kernel-release>.img
+fastboot erase "dtbo_${LINUX_SLOT}"
 fastboot flash "boot_${LINUX_SLOT}" "$BOOT"
 fastboot --set-active="$LINUX_SLOT"
 fastboot reboot
 ```
+
+只擦除所选 Linux 槽位对应的 `dtbo` 分区。Caihong 设备树已经包含在 boot 镜像中，
+不能再向 Linux 应用该槽位残留的 Android DTBO；请保留 Android 槽位的 `dtbo`
+分区。
 
 单系统安装时将 `BOOT` 改为 `userdata` 版本。Linux 首次成功启动后会记录实际
 启动槽，并仅将该槽标记为启动成功。
