@@ -74,6 +74,17 @@ The two Android boot image v2 files contain only Linux `{kernel_release}` and th
 Caihong DTB; they do not contain a ramdisk. Choose the `linux` image for dual boot
 or the `userdata` image for a single-system installation.
 
+## Required DTBO step
+
+Erase only the DTBO partition for the slot selected for Linux before flashing
+its boot image. Keep the Android slot's DTBO intact.
+
+```sh
+LINUX_SLOT=b
+fastboot erase "dtbo_${{LINUX_SLOT}}"
+fastboot flash "boot_${{LINUX_SLOT}}" caihong-boot-linux-{kernel_release}.img
+```
+
 ## Rootfs
 
 {rootfs_instructions}
