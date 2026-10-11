@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
-"""Prepare GitHub release assets, splitting the rootfs below 2 GiB."""
+"""Prepare installable GitHub release assets and release notes."""
 
 from __future__ import annotations
 
@@ -35,12 +35,74 @@ def load_dependencies(path: Path) -> dict[str, str]:
     return result
 
 
+def write_release_notes(
+    path: Path,
+    kernel_release: str,
+    assets: list[Path],
+    rootfs: Path,
+    rootfs_assets: list[Path],
+    dependencies: dict[str, str],
+) -> None:
+    checksums = "".join(f"{sha256(asset)}  {asset.name}\n" for asset in assets)
+    source_lines = []
+    for component in ("LINUX", "LIBCAMERA", "PLASMA_CAMERA", "QBOOTCTL", "MKBOOTIMG"):
+        repository = dependencies.get(f"{component}_REPOSITORY")
+        reference = dependencies.get(f"{component}_REF")
+        commit = dependencies.get(f"{component}_COMMIT")
+        if repository and reference and commit:
+            source_lines.append(
+                f"- `{component.lower().replace('_', '-')}`: `{commit}` "
+                f"(`{reference}`, {repository})"
+            )
+
+    if len(rootfs_assets) == 1 and rootfs_assets[0].name == rootfs.name:
+        rootfs_instructions = f"Use `{rootfs.name}` directly."
+    else:
+        parts = " ".join(asset.name for asset in rootfs_assets)
+        rootfs_instructions = (
+            "GitHub limits each Release asset to less than 2 GiB, so the rootfs "
+            "is split without recompression. Reconstruct it in part-number order:\n\n"
+            "```sh\n"
+            f"cat {parts} > {rootfs.name}\n"
+            "```"
+        )
+
+    path.write_text(
+        f"""Caihong Linux release for the OnePlus Pad Pro.
+
+The two Android boot image v2 files contain only Linux `{kernel_release}` and the
+Caihong DTB; they do not contain a ramdisk. Choose the `linux` image for dual boot
+or the `userdata` image for a single-system installation.
+
+## Rootfs
+
+{rootfs_instructions}
+
+Reconstructed rootfs SHA-256:
+
+```text
+{sha256(rootfs)}  {rootfs.name}
+```
+
+## Asset SHA-256
+
+```text
+{checksums}```
+
+## Resolved source revisions
+
+{chr(10).join(source_lines)}
+"""
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--release-dir", type=Path, required=True)
     parser.add_argument("--rootfs", type=Path, required=True)
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--assets", type=Path, required=True)
+    parser.add_argument("--notes", type=Path, required=True)
     args = parser.parse_args()
 
     release_dir = args.release_dir.resolve()
@@ -65,15 +127,7 @@ def main() -> int:
     copied = []
     for name in (
         f"caihong-boot-linux-{kernel_release}.img",
-        f"caihong-boot-linux-{kernel_release}.img.json",
         f"caihong-boot-userdata-{kernel_release}.img",
-        f"caihong-boot-userdata-{kernel_release}.img.json",
-        f"Image-{kernel_release}",
-        f"sm8650-oneplus-caihong-{kernel_release}.dtb",
-        f"config-{kernel_release}",
-        "KERNEL_RELEASE",
-        "LINUX_CAIHONG_PACKAGE",
-        "SHA256SUMS.boot",
         kernel_package_name,
     ):
         target = assets / name
@@ -99,6 +153,7 @@ def main() -> int:
                 index += 1
     copied.extend(rootfs_assets)
 
+    dependencies = load_dependencies(args.dependencies)
     manifest = {
         "device": "OnePlus Pad Pro (caihong)",
         "kernel_release": kernel_release,
@@ -114,18 +169,24 @@ def main() -> int:
             "sha256": rootfs_hash,
             "assets": [path.name for path in rootfs_assets],
         },
-        "dependencies": load_dependencies(args.dependencies),
+        "dependencies": dependencies,
     }
-    manifest_path = assets / "release-manifest.json"
+    manifest_path = release_dir / "release-manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-    copied.append(manifest_path)
-
-    sums = assets / "SHA256SUMS"
+    sums = release_dir / "SHA256SUMS"
     sums.write_text("".join(f"{sha256(path)}  {path.name}\n" for path in copied))
-    for path in [*copied, sums]:
+    write_release_notes(
+        args.notes.resolve(),
+        kernel_release,
+        copied,
+        rootfs,
+        rootfs_assets,
+        dependencies,
+    )
+    for path in copied:
         if path.stat().st_size >= 2 * 1024 * 1024 * 1024:
             raise RuntimeError(f"release asset is not below 2 GiB: {path}")
-    print(f"prepared {len(copied) + 1} release assets in {assets}")
+    print(f"prepared {len(copied)} installable release assets in {assets}")
     return 0
 
 

@@ -43,8 +43,9 @@ root=PARTLABEL=linux rootfstype=ext4 rootwait rw
   2 GiB 时会拆分为按顺序排列的 `.part-00`、`.part-01` 等文件。
 - `linux-caihong-<version>-1-aarch64.pkg.tar.zst`：包含两种 boot 镜像
   和配套内核模块的 pacman 软件包。
-- `release-manifest.json`：源码版本、文件大小和 SHA-256。
-- `SHA256SUMS`：所有下载文件的校验值。
+
+Release 说明会记录各文件 SHA-256、重组后 rootfs 的 SHA-256 以及实际使用的源码
+版本。可安装资产不会使用 ZIP 打包。
 
 ## 安装方法
 
@@ -58,11 +59,10 @@ root=PARTLABEL=linux rootfstype=ext4 rootwait rw
 - **单系统：** 使用现有的 `userdata` 分区，并选择
   `caihong-boot-userdata-*.img`。格式化该分区会删除 Android 用户数据。
 
-下载对应 boot 镜像、rootfs 文件、`SHA256SUMS` 和
-`release-manifest.json`。校验当前已经下载的所有发布文件：
+下载对应 boot 镜像和 rootfs 文件，并与 Release 说明中的 SHA-256 对比：
 
 ```sh
-sha256sum --ignore-missing -c SHA256SUMS
+sha256sum caihong-boot-*.img caihong-rootfs-*.tar.zst.part-*
 ```
 
 如果 rootfs 被拆分，按编号顺序合并：
@@ -174,8 +174,8 @@ sudo -E env CHROOT_TOOL=chroot MODULE_TREE="$PWD/modules-current" \
   "release/caihong-rootfs-$(cat release/KERNEL_RELEASE).tar.zst"
 ```
 
-GitHub Actions 使用原生 AArch64 构建，并在不同运行之间保存 ccache。每个 Release
-都会在 `release-manifest.json` 中记录实际使用的各组件提交。
+GitHub Actions 使用原生 AArch64 构建，并在不同运行之间保存 ccache。每个
+Release 说明都会记录实际使用的各组件提交。
 
 ## 许可证
 

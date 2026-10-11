@@ -44,8 +44,10 @@ drivers, firmware and device-specific userspace are stored in the rootfs.
   above 2 GiB are published as ordered `.part-00`, `.part-01`, … files.
 - `linux-caihong-<version>-1-aarch64.pkg.tar.zst`: pacman package containing
   both direct-root boot images and the matching kernel modules.
-- `release-manifest.json`: source revisions, sizes and SHA-256 digests.
-- `SHA256SUMS`: digest for every downloadable asset.
+
+The Release description records the SHA-256 digests, reconstructed rootfs
+digest and resolved source revisions. No ZIP archive is used for installable
+assets.
 
 ## Installation
 
@@ -60,11 +62,11 @@ Choose one layout:
   `caihong-boot-userdata-*.img` image. Formatting this partition deletes
   Android user data.
 
-Download the selected boot image, rootfs files, `SHA256SUMS`, and
-`release-manifest.json`. Verify every downloaded asset that is present:
+Download the selected boot image and rootfs files. Compare their digests with
+the SHA-256 values in the Release description:
 
 ```sh
-sha256sum --ignore-missing -c SHA256SUMS
+sha256sum caihong-boot-*.img caihong-rootfs-*.tar.zst.part-*
 ```
 
 If the rootfs is split, reconstruct it in part-number order:
@@ -184,8 +186,7 @@ sudo -E env CHROOT_TOOL=chroot MODULE_TREE="$PWD/modules-current" \
 ```
 
 GitHub Actions performs native AArch64 builds and persists ccache between
-runs. Every release records the resolved component commits in
-`release-manifest.json`.
+runs. Every Release description records the resolved component commits.
 
 ## Licensing
 

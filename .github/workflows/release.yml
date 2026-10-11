@@ -115,7 +115,8 @@ jobs:
             --release-dir release \
             --rootfs "release/caihong-rootfs-$kernel_release.tar.zst" \
             --dependencies build/dependencies.resolved.env \
-            --assets release/assets
+            --assets release/assets \
+            --notes release/RELEASE_NOTES.md
 
       - name: Publish GitHub release
         if: github.event_name == 'push' || inputs.publish_release
@@ -131,10 +132,13 @@ jobs:
           fi
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" release/assets/* --clobber
+            gh release edit "$tag" \
+              --title "Caihong Linux $tag" \
+              --notes-file release/RELEASE_NOTES.md
           else
             gh release create "$tag" release/assets/* \
               --title "Caihong Linux $tag" \
-              --generate-notes
+              --notes-file release/RELEASE_NOTES.md
           fi
 
       - name: Upload build verification artifacts
