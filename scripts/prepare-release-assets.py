@@ -10,6 +10,7 @@ import hashlib
 import json
 import shutil
 import struct
+import subprocess
 from pathlib import Path
 
 
@@ -23,6 +24,8 @@ SPARSE_CHUNK_RAW = 0xCAC1
 SPARSE_CHUNK_FILL = 0xCAC2
 SPARSE_CHUNK_DONT_CARE = 0xCAC3
 SPARSE_CHUNK_CRC32 = 0xCAC4
+ZSTD_LEVEL = 15
+ZSTD_THREADS = 0
 
 
 def sha256(path: Path) -> str:
@@ -117,16 +120,47 @@ def copy_part(source, target: Path, limit: int) -> int:
     return copied
 
 
+def compress_zstd(source: Path, output: Path) -> None:
+    if shutil.which("zstd") is None:
+        raise RuntimeError("zstd is required to prepare release assets")
+    temporary = output.with_name(f"{output.name}.new")
+    temporary.unlink(missing_ok=True)
+    try:
+        subprocess.run(
+            [
+                "zstd",
+                "-q",
+                f"-T{ZSTD_THREADS}",
+                f"-{ZSTD_LEVEL}",
+                "--force",
+                str(source),
+                "-o",
+                str(temporary),
+            ],
+            check=True,
+        )
+        subprocess.run(["zstd", "-q", "--test", str(temporary)], check=True)
+        temporary.replace(output)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def write_release_notes(
     path: Path,
     kernel_release: str,
     assets: list[Path],
+    asset_hashes: dict[str, str],
     rootfs: Path,
+    rootfs_hash: str,
+    compressed_rootfs: Path,
+    compressed_rootfs_hash: str,
     rootfs_assets: list[Path],
     dependencies: dict[str, str],
     rootfs_metadata: dict[str, int | str],
 ) -> None:
-    checksums = "".join(f"{sha256(asset)}  {asset.name}\n" for asset in assets)
+    checksums = "".join(
+        f"{asset_hashes[asset.name]}  {asset.name}\n" for asset in assets
+    )
     source_lines = []
     for component in ("LINUX", "LIBCAMERA", "PLASMA_CAMERA", "QBOOTCTL", "MKBOOTIMG"):
         repository = dependencies.get(f"{component}_REPOSITORY")
@@ -138,29 +172,37 @@ def write_release_notes(
                 f"(`{reference}`, {repository})"
             )
 
-    if len(rootfs_assets) == 1 and rootfs_assets[0].name == rootfs.name:
-        reconstruction = f"Use `{rootfs.name}` directly."
+    if (
+        len(rootfs_assets) == 1
+        and rootfs_assets[0].name == compressed_rootfs.name
+    ):
+        reconstruction = f"Use `{compressed_rootfs.name}` directly."
     else:
         parts = " ".join(asset.name for asset in rootfs_assets)
         reconstruction = (
             "GitHub limits each Release asset to less than 2 GiB, so the rootfs "
-            "is split without recompression. Reconstruct it in part-number order:\n\n"
+            "image is compressed first and then split. Reconstruct the zstd stream "
+            "in part-number order:\n\n"
             "```sh\n"
-            f"cat {parts} > {rootfs.name}\n"
+            f"cat {parts} > {compressed_rootfs.name}\n"
             "```"
         )
 
     if rootfs_metadata["format"] == "android-sparse-ext4":
         rootfs_instructions = (
             f"{reconstruction}\n\n"
-            "The reconstructed file is an Android sparse ext4 image and can be "
-            "flashed directly. Select `linux` for dual boot or `userdata` for a "
-            "single-system installation:\n\n"
+            "Verify and decompress the complete stream to recover the flashable "
+            "Android sparse ext4 image:\n\n"
             "```sh\n"
-            "ROOT_PARTITION=linux\n"
+            f"sha256sum {compressed_rootfs.name}\n"
+            f"zstd -d {compressed_rootfs.name} -o {rootfs.name}\n"
+            f"sha256sum {rootfs.name}\n"
+            "ROOT_PARTITION=linux  # use userdata for a single-system install\n"
             f"fastboot flash \"$ROOT_PARTITION\" {rootfs.name}\n"
             "```\n\n"
-            f"Its logical filesystem size is {rootfs_metadata['logical_bytes']} bytes."
+            "The two SHA-256 values are listed below. The decompressed image is "
+            "ready for fastboot; its logical filesystem size is "
+            f"{rootfs_metadata['logical_bytes']} bytes."
         )
     else:
         rootfs_instructions = reconstruction
@@ -187,10 +229,16 @@ fastboot flash "boot_${{LINUX_SLOT}}" caihong-boot-linux-{kernel_release}.img
 
 {rootfs_instructions}
 
-Complete rootfs image SHA-256:
+Complete compressed rootfs SHA-256:
 
 ```text
-{sha256(rootfs)}  {rootfs.name}
+{compressed_rootfs_hash}  {compressed_rootfs.name}
+```
+
+Decompressed flashable rootfs SHA-256:
+
+```text
+{rootfs_hash}  {rootfs.name}
 ```
 
 ## Asset SHA-256
@@ -232,6 +280,12 @@ def main() -> int:
             raise RuntimeError(f"boot manifest root mismatch for {root}")
     kernel_package_name = (release_dir / "LINUX_CAIHONG_PACKAGE").read_text().strip()
     kernel_package = release_dir / kernel_package_name
+    if not kernel_package.is_file():
+        raise RuntimeError(f"kernel package does not exist: {kernel_package}")
+
+    compressed_rootfs = release_dir / f"{rootfs.name}.zst"
+    print(f"compressing {rootfs.name} before release splitting")
+    compress_zstd(rootfs, compressed_rootfs)
 
     if assets.exists():
         shutil.rmtree(assets)
@@ -247,16 +301,17 @@ def main() -> int:
         copied.append(target)
 
     rootfs_hash = sha256(rootfs)
+    compressed_rootfs_hash = sha256(compressed_rootfs)
     rootfs_assets = []
-    if rootfs.stat().st_size < DIRECT_BYTES:
-        target = assets / rootfs.name
-        shutil.copy2(rootfs, target)
+    if compressed_rootfs.stat().st_size < DIRECT_BYTES:
+        target = assets / compressed_rootfs.name
+        shutil.copy2(compressed_rootfs, target)
         rootfs_assets.append(target)
     else:
-        with rootfs.open("rb") as source:
+        with compressed_rootfs.open("rb") as source:
             index = 0
             while True:
-                target = assets / f"{rootfs.name}.part-{index:02d}"
+                target = assets / f"{compressed_rootfs.name}.part-{index:02d}"
                 copied_bytes = copy_part(source, target, PART_BYTES)
                 if copied_bytes == 0:
                     target.unlink()
@@ -264,6 +319,7 @@ def main() -> int:
                 rootfs_assets.append(target)
                 index += 1
     copied.extend(rootfs_assets)
+    asset_hashes = {path.name: sha256(path) for path in copied}
 
     dependencies = load_dependencies(args.dependencies)
     manifest = {
@@ -273,26 +329,39 @@ def main() -> int:
         "pacman_package": {
             "name": kernel_package_name,
             "bytes": kernel_package.stat().st_size,
-            "sha256": sha256(kernel_package),
+            "sha256": asset_hashes[kernel_package_name],
         },
         "rootfs": {
-            "reconstructed_name": rootfs.name,
-            "bytes": rootfs.stat().st_size,
-            "sha256": rootfs_hash,
-            "assets": [path.name for path in rootfs_assets],
             **rootfs_metadata,
+            "image_name": rootfs.name,
+            "image_bytes": rootfs.stat().st_size,
+            "image_sha256": rootfs_hash,
+            "compression": {
+                "format": "zstd",
+                "level": ZSTD_LEVEL,
+                "reconstructed_name": compressed_rootfs.name,
+                "bytes": compressed_rootfs.stat().st_size,
+                "sha256": compressed_rootfs_hash,
+                "assets": [path.name for path in rootfs_assets],
+            },
         },
         "dependencies": dependencies,
     }
     manifest_path = release_dir / "release-manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     sums = release_dir / "SHA256SUMS"
-    sums.write_text("".join(f"{sha256(path)}  {path.name}\n" for path in copied))
+    sums.write_text(
+        "".join(f"{asset_hashes[path.name]}  {path.name}\n" for path in copied)
+    )
     write_release_notes(
         args.notes.resolve(),
         kernel_release,
         copied,
+        asset_hashes,
         rootfs,
+        rootfs_hash,
+        compressed_rootfs,
+        compressed_rootfs_hash,
         rootfs_assets,
         dependencies,
         rootfs_metadata,

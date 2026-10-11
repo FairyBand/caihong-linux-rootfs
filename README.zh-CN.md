@@ -39,14 +39,14 @@ root=PARTLABEL=linux rootfstype=ext4 rootwait rw
   `linux`。
 - `caihong-boot-userdata-<kernel-release>.img`：单系统镜像，根分区使用
   `userdata`。
-- `caihong-rootfs-<kernel-release>.ext4.sparse.img`：可由 fastboot 直接刷写的
-  Android sparse ext4 rootfs 镜像；大于等于 2 GiB 时会拆分为按顺序排列的
-  `.part-00`、`.part-01` 等文件。
+- `caihong-rootfs-<kernel-release>.ext4.sparse.img.zst`：经过 zstd 压缩的
+  Android sparse ext4 rootfs 镜像；先压缩完整镜像，再将大于等于 2 GiB 的压缩
+  流拆成按顺序排列的 `.part-00`、`.part-01` 等文件。
 - `linux-caihong-<version>-1-aarch64.pkg.tar.zst`：包含两种 boot 镜像
   和配套内核模块的 pacman 软件包。
 
-Release 说明会记录各文件 SHA-256、重组后完整 rootfs 镜像的 SHA-256、文件系统
-逻辑大小以及实际使用的源码版本。可安装资产不会使用 ZIP 打包。
+Release 说明会记录每个资产、重组后 zstd 压缩流和解压后可刷写镜像的 SHA-256，
+以及文件系统逻辑大小和实际使用的源码版本。可安装资产不会使用 ZIP 打包。
 
 ## 安装方法
 
@@ -55,7 +55,7 @@ Release 说明会记录各文件 SHA-256、重组后完整 rootfs 镜像的 SHA-
 ### 前置条件
 
 - bootloader 已解锁。
-- 电脑已安装 `adb` 和 `fastboot`。
+- 电脑已安装 `adb`、`fastboot` 和 `zstd`。
 - Android 与内部存储中的重要数据已经备份。
 - boot 镜像与 rootfs 镜像来自同一个 Release。
 - 双系统安装需要 GPT 分区名为 `linux` 的分区；如果已经存在，请跳过下面的建分区
@@ -67,20 +67,24 @@ Release 说明会记录各文件 SHA-256、重组后完整 rootfs 镜像的 SHA-
 
 - 双系统使用 `caihong-boot-linux-<kernel-release>.img`。
 - 单系统使用 `caihong-boot-userdata-<kernel-release>.img`。
-- 两种布局共用
-  `caihong-rootfs-<kernel-release>.ext4.sparse.img`。
+- 两种布局共用压缩后的
+  `caihong-rootfs-<kernel-release>.ext4.sparse.img.zst`。
 
-逐一对照 Release 说明中的 SHA-256。rootfs 分片不能单独刷写；按编号顺序重组完整
-sparse 镜像，再将其 SHA-256 与 Release 说明中的完整镜像摘要对比：
+逐一对照 Release 说明中的 SHA-256。rootfs 分片不能单独解压或刷写；按编号顺序
+重组压缩流并校验，然后解压并校验可刷写的 sparse 镜像：
 
 ```sh
-sha256sum caihong-boot-*.img caihong-rootfs-*.ext4.sparse.img.part-*
-cat caihong-rootfs-*.ext4.sparse.img.part-* \
-  > caihong-rootfs.ext4.sparse.img
+sha256sum caihong-boot-*.img caihong-rootfs-*.ext4.sparse.img.zst.part-*
+cat caihong-rootfs-*.ext4.sparse.img.zst.part-* \
+  > caihong-rootfs.ext4.sparse.img.zst
+sha256sum caihong-rootfs.ext4.sparse.img.zst
+zstd -d caihong-rootfs.ext4.sparse.img.zst \
+  -o caihong-rootfs.ext4.sparse.img
 sha256sum caihong-rootfs.ext4.sparse.img
 ```
 
-如果 Release 直接提供一个未分片的 `.ext4.sparse.img`，直接使用并跳过 `cat`。
+如果 Release 直接提供一个未分片的 `.ext4.sparse.img.zst`，直接使用并跳过 `cat`。
+Release 说明中会同时列出两个完整文件的摘要。
 
 ### 双系统安装
 

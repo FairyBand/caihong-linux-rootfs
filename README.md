@@ -29,15 +29,17 @@ development release for this device; review the status table before installing.
   root partition.
 - `caihong-boot-userdata-<kernel-release>.img`: single-system image using the
   `userdata` root partition.
-- `caihong-rootfs-<kernel-release>.ext4.sparse.img`: Android sparse ext4 rootfs
-  image that fastboot can flash directly. Images at or above 2 GiB are
-  published as ordered `.part-00`, `.part-01`, … files.
+- `caihong-rootfs-<kernel-release>.ext4.sparse.img.zst`: zstd-compressed Android
+  sparse ext4 rootfs image. The complete image is compressed first; compressed
+  streams at or above 2 GiB are then split into ordered `.part-00`, `.part-01`,
+  … files.
 - `linux-caihong-<version>-1-aarch64.pkg.tar.zst`: pacman package containing
   both direct-root boot images and the matching kernel modules.
 
-The Release description records the SHA-256 digests, complete reconstructed
-rootfs image digest, logical filesystem size and resolved source revisions. No
-ZIP archive is used for installable assets.
+The Release description records the SHA-256 digests of every asset, the
+reconstructed zstd stream and the decompressed flashable image, together with
+the logical filesystem size and resolved source revisions. No ZIP archive is
+used for installable assets.
 
 ## Installation
 
@@ -47,7 +49,7 @@ erase Android and other device data.
 ### Prerequisites
 
 - The bootloader is unlocked.
-- `adb` and `fastboot` are installed on the host computer.
+- `adb`, `fastboot` and `zstd` are installed on the host computer.
 - Important Android and internal-storage data has been backed up.
 - The boot image and rootfs image come from the same release.
 - A dual-boot installation has a GPT partition named `linux`. If it already
@@ -59,23 +61,27 @@ Download one boot image and all rootfs image parts from the Release:
 
 - Dual boot uses `caihong-boot-linux-<kernel-release>.img`.
 - Single system uses `caihong-boot-userdata-<kernel-release>.img`.
-- Both layouts use the same
-  `caihong-rootfs-<kernel-release>.ext4.sparse.img`.
+- Both layouts use the same compressed
+  `caihong-rootfs-<kernel-release>.ext4.sparse.img.zst` stream.
 
 Compare every downloaded file with the SHA-256 values in the Release
-description. The rootfs parts are not individually flashable. Reconstruct the
-complete sparse image in part-number order, then compare its SHA-256 with the
-complete-image digest in the Release description:
+description. The rootfs parts are not individually decompressible or
+flashable. Reconstruct the compressed stream in part-number order, verify it,
+then decompress and verify the flashable sparse image:
 
 ```sh
-sha256sum caihong-boot-*.img caihong-rootfs-*.ext4.sparse.img.part-*
-cat caihong-rootfs-*.ext4.sparse.img.part-* \
-  > caihong-rootfs.ext4.sparse.img
+sha256sum caihong-boot-*.img caihong-rootfs-*.ext4.sparse.img.zst.part-*
+cat caihong-rootfs-*.ext4.sparse.img.zst.part-* \
+  > caihong-rootfs.ext4.sparse.img.zst
+sha256sum caihong-rootfs.ext4.sparse.img.zst
+zstd -d caihong-rootfs.ext4.sparse.img.zst \
+  -o caihong-rootfs.ext4.sparse.img
 sha256sum caihong-rootfs.ext4.sparse.img
 ```
 
-If the Release contains one unsplit `.ext4.sparse.img`, use it directly and
-skip the `cat` command.
+If the Release contains one unsplit `.ext4.sparse.img.zst`, use it directly
+and skip the `cat` command. The Release description lists both complete-file
+digests.
 
 ### Dual boot
 
