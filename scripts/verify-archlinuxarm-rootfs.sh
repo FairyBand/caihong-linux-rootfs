@@ -118,7 +118,8 @@ else
 		fi
 	done
 	for module in oneplus_pogo nt36532e_ts sc8547_cp caihong_pen_power \
-		bnep rfcomm system_heap cma_heap sc820cs sc1320cs gt9772 ath12k_wifi7 \
+		bnep rfcomm hidp veth bridge br_netfilter nft_compat xt_CHECKSUM \
+		xt_MASQUERADE system_heap cma_heap sc820cs sc1320cs gt9772 ath12k_wifi7 \
 		qcom_q6v5_pas; do
 		module_file=$(find "$module_dir" -type f -name "$module.ko" -print -quit)
 		if [ -z "$module_file" ]; then
