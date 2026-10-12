@@ -163,6 +163,38 @@ static const char *first_readable(const char *const *paths, size_t count)
 	return NULL;
 }
 
+static const char *first_executable(const char *const *paths, size_t count)
+{
+	size_t i;
+
+	for (i = 0; i < count; i++)
+		if (!access(paths[i], X_OK))
+			return paths[i];
+	return NULL;
+}
+
+static int prepend_colon_path(const char *variable, const char *path)
+{
+	const char *current = getenv(variable);
+	char paths[PATH_MAX * 2];
+	int length;
+
+	if (current && current[0])
+		length = snprintf(paths, sizeof(paths), "%s:%s", path, current);
+	else
+		length = snprintf(paths, sizeof(paths), "%s", path);
+	if (length < 0 || (size_t)length >= sizeof(paths)) {
+		fprintf(stderr, "%s is too long\n", variable);
+		return -1;
+	}
+	if (setenv(variable, paths, 1)) {
+		fprintf(stderr, "cannot set %s: %s\n", variable,
+			strerror(errno));
+		return -1;
+	}
+	return 0;
+}
+
 static int prepend_dsp_path(const char *path)
 {
 	const char *current = getenv("DSP_LIBRARY_PATH");
@@ -249,11 +281,65 @@ static int run_self_test(void)
 	return 0;
 }
 
+static int run_htp_self_test(void)
+{
+	static const char *const helpers[] = {
+		"/usr/local/libexec/caihong-npu-htp-self-test",
+	};
+	static const char *const backends[] = {
+		"/usr/lib/caihong-npu/qnn/libQnnHtp.so",
+		"/usr/lib64/caihong-npu/qnn/libQnnHtp.so",
+	};
+	static const char *const dsp_paths[] = {
+		"/usr/share/caihong-npu/dsp/v75",
+	};
+	const char *helper = first_executable(helpers,
+					      sizeof(helpers) / sizeof(helpers[0]));
+	const char *backend = first_readable(backends,
+					     sizeof(backends) / sizeof(backends[0]));
+	const char *dsp_path = first_readable(dsp_paths,
+					      sizeof(dsp_paths) / sizeof(dsp_paths[0]));
+	char library_path[PATH_MAX];
+	char *separator;
+
+	if (!helper || !backend || !dsp_path) {
+		fprintf(stderr,
+			"HTP self-test assets are missing; reinstall the Caihong QAIRT runtime\n");
+		return 1;
+	}
+	if (geteuid()) {
+		fprintf(stderr,
+			"HTP self-test requires root access to /dev/fastrpc-cdsp\n");
+		return 1;
+	}
+	if (strlen(backend) >= sizeof(library_path)) {
+		fprintf(stderr, "QNN backend path is too long\n");
+		return 1;
+	}
+	strcpy(library_path, backend);
+	separator = strrchr(library_path, '/');
+	if (!separator) {
+		fprintf(stderr, "QNN backend has no directory component\n");
+		return 1;
+	}
+	*separator = '\0';
+	if (prepend_colon_path("LD_LIBRARY_PATH", library_path) ||
+	    prepend_dsp_path(dsp_path))
+		return 1;
+
+	printf("HTP self-test: QAIRT/QNN ElementWiseAdd, 1024 float32 values\n");
+	fflush(stdout);
+	execl(helper, helper, backend, (char *)NULL);
+	fprintf(stderr, "cannot execute %s: %s\n", helper, strerror(errno));
+	return 1;
+}
+
 static void usage(const char *program)
 {
-	printf("usage: %s [--self-test]\n", program);
+	printf("usage: %s [--self-test | --htp-self-test]\n", program);
 	printf("  no arguments  show CDSP firmware state and FastRPC capabilities\n");
 	printf("  --self-test   execute and verify the v75 DSP calculator test\n");
+	printf("  --htp-self-test  execute and verify a QAIRT/QNN graph on HTP\n");
 }
 
 int main(int argc, char **argv)
@@ -268,6 +354,8 @@ int main(int argc, char **argv)
 
 	if (argc == 2 && !strcmp(argv[1], "--self-test"))
 		return run_self_test();
+	if (argc == 2 && !strcmp(argv[1], "--htp-self-test"))
+		return run_htp_self_test();
 	if (argc == 2 && (!strcmp(argv[1], "--help") ||
 			  !strcmp(argv[1], "-h"))) {
 		usage(argv[0]);

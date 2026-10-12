@@ -3,3 +3,8 @@ firmware/** -diff -text
 firmware-assets/caihong-ssc/bin/** -diff -text
 firmware-assets/caihong-ssc/lib/** -diff -text
 firmware-assets/caihong-ssc/root/** -diff -text
+
+# Qualcomm QAIRT runtime and DSP payloads are immutable binary inputs.
+firmware-assets/caihong-npu/qnn/bin/** -diff -text
+firmware-assets/caihong-npu/qnn/lib/** -diff -text
+firmware-assets/caihong-npu/dsp/** -diff -text

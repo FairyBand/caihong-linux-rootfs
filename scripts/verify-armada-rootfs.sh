@@ -60,11 +60,20 @@ required_paths=(
 	usr/share/doc/caihong-armada/SOURCES-AND-LICENSES.md
 	usr/local/libexec/caihong-nvram-mac
 	usr/local/sbin/caihong-npu-info
+	usr/local/libexec/caihong-npu-htp-self-test
 	usr/lib64/libcdsprpc.so.1
 	usr/lib64/caihong-npu/libcalculator.so
+	usr/lib64/caihong-npu/qnn/libQnnHtp.so
+	usr/lib64/caihong-npu/qnn/libQnnHtpPrepare.so
+	usr/lib64/caihong-npu/qnn/libQnnHtpV75Stub.so
 	usr/share/caihong-npu/dsp/v75/fastrpc_shell_unsigned_3
 	usr/share/caihong-npu/dsp/v75/libcalculator_skel.so
+	usr/share/caihong-npu/dsp/v75/libQnnHtpV75Skel.so
+	usr/share/caihong-npu/dsp/v75/libc++.so.1
+	usr/share/caihong-npu/dsp/v75/libc++abi.so.1
 	usr/share/licenses/caihong-npu/LICENSE.fastrpc
+	usr/share/licenses/caihong-npu/LICENSE.geniex-qairt-plugin
+	usr/share/licenses/caihong-npu/THIRD_PARTY_NOTICES.QAIRT.md
 	usr/local/sbin/qbootctl
 	usr/local/sbin/caihong-slot
 	usr/local/sbin/caihong-flashlight

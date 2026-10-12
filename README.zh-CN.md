@@ -221,7 +221,7 @@ root 权限。
 | `caihong-flashlight` | 控制后置手电筒：`sudo caihong-flashlight on 40`、`status` 或 `off`。 |
 | `caihong-hotspot` | 在保持 STA 连接的同时启动热点：`sudo caihong-hotspot start`；还支持 `status`、`stop` 和 `regulatory {show\|set CODE\|reset}`。配置文件为 `/etc/caihong-hotspot.conf`。 |
 | `caihong-hardware-mac` | 从设备冗余 NVRAM 读取并在启动时应用原厂 WLAN 与蓝牙地址。 |
-| `caihong-npu-info` | `sudo caihong-npu-info` 显示 CDSP 固件状态和 FastRPC 能力；`sudo caihong-npu-info --self-test` 会创建 unsigned PD、加载随附的 v75 DSP 计算库，并校验向量求和与最大值结果。 |
+| `caihong-npu-info` | `sudo caihong-npu-info` 显示 CDSP 固件状态和 FastRPC 能力；`--self-test` 验证通用 v75 DSP 执行，`--htp-self-test` 会在 HTP 后端建立并执行经过结果校验的 QAIRT/QNN 图。 |
 | `caihong-bluetooth-autostart` | 启动时打开已经配置地址的蓝牙控制器。 |
 | `caihong-pen-pair` | 使用通过 CPS8601 磁吸事件校验得到的地址配对手写笔，通常由 systemd 定时器调用。 |
 | `caihong-pen-charge` | 执行有时间限制的 CPS8601 充电与吸附观察，通常由 systemd 定时器调用。 |
