@@ -89,7 +89,7 @@ usr/lib/systemd/system/caihong-ssc.service
 usr/lib/systemd/system/iio-sensor-proxy.service.d/caihong-ssc.conf
 usr/lib/udev/rules.d/90-caihong-ssc.rules
 var/lib/caihong-ssc/root/sensors/sns_reg.conf
-etc/udev/rules.d/70-dma-heap.rules
+etc/udev/rules.d/99-caihong-dma-heap.rules
 etc/udev/rules.d/80-caihong-hotspot.rules
 usr/lib/firmware/ath12k/WCN7850/hw2.0/board-2.bin
 usr/lib/firmware/ath12k/WCN7850/hw2.0/caihong/amss.bin

@@ -194,11 +194,9 @@ printf '%s / %s rw,noatime 0 1\n' "$root_spec" "$root_fstype" > "$target/etc/fst
 : > "$target/etc/machine-id"
 
 # libcamera allocates application-visible frame buffers from DMA-BUF heaps.
-install -d -m 0755 "$target/etc/udev/rules.d"
-{
-	printf '%s\n' 'SUBSYSTEM=="dma_heap", KERNEL=="system", GROUP="video", MODE="0660"'
-	printf '%s\n' 'SUBSYSTEM=="dma_heap", KERNEL!="system", GROUP="root", MODE="0600"'
-} > "$target/etc/udev/rules.d/70-dma-heap.rules"
+install -D -m 0644 \
+	"$project_dir/rootfs/archlinuxarm/etc/udev/rules.d/99-caihong-dma-heap.rules" \
+	"$target/etc/udev/rules.d/99-caihong-dma-heap.rules"
 
 if [ "${INCLUDE_BOOT_ARTIFACTS:-0}" = 1 ]; then
 	install -D -m 0644 "$project_dir/linux/out/arch/arm64/boot/Image" \

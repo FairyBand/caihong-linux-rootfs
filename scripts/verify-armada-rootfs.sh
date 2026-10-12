@@ -4,6 +4,7 @@
 set -Eeuo pipefail
 CDPATH=
 
+project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 target=${1:-}
 if [[ -z $target || ! -d $target ]]; then
 	echo "usage: $0 ROOTFS_DIR" >&2
@@ -47,6 +48,14 @@ required_paths=(
 	usr/bin/qcam
 	usr/bin/plasma-camera
 	usr/lib64/gstreamer-1.0/libgstlibcamera.so
+	usr/lib64/libcamera-base.so.0.7.2
+	usr/lib64/libcamera.so.0.7
+	usr/lib64/libcamera.so.0.7.2
+	usr/lib64/libcamera/ipa/ipa_soft_simple.so
+	usr/lib64/libcamera/ipa/ipa_soft_simple.so.sign
+	usr/libexec/libcamera/soft_ipa_proxy
+	usr/share/caihong/libcamera-build-info
+	usr/share/caihong/plasma-camera-build-info
 	etc/issue.d/20-caihong-armada.issue
 	usr/share/doc/caihong-armada/SOURCES-AND-LICENSES.md
 	usr/local/libexec/caihong-nvram-mac
@@ -74,6 +83,7 @@ required_paths=(
 	usr/lib/firmware/novatek/DT-novatek-nt36532.bin
 	usr/lib/firmware/qcom/sm8650/SM8650-MTP-tplg.bin
 	etc/modules-load.d/armada-handheld.conf
+	etc/udev/rules.d/99-caihong-dma-heap.rules
 	etc/systemd/system/multi-user.target.wants/caihong-hardware-mac.service
 	etc/systemd/system/multi-user.target.wants/caihong-mark-boot-successful.service
 	etc/systemd/system/multi-user.target.wants/caihong-ssc.service
@@ -88,6 +98,24 @@ required_paths=(
 for path in "${required_paths[@]}"; do
 	require_path "$path"
 done
+
+libcamera_commit=$(git -C "$project_dir/external/libcamera" rev-parse --verify HEAD)
+plasma_camera_commit=$(git -C "$project_dir/external/plasma-camera" rev-parse --verify HEAD)
+grep -qx "source_commit=$libcamera_commit" \
+	"$target/usr/share/caihong/libcamera-build-info" 2>/dev/null || {
+	echo "Armada libcamera source commit does not match the workspace" >&2
+	failed=1
+}
+grep -qx 'libdir=lib64' \
+	"$target/usr/share/caihong/libcamera-build-info" 2>/dev/null || {
+	echo "Armada libcamera was not installed in /usr/lib64" >&2
+	failed=1
+}
+grep -qx "source_commit=$plasma_camera_commit" \
+	"$target/usr/share/caihong/plasma-camera-build-info" 2>/dev/null || {
+	echo "Armada Plasma Camera source commit does not match the workspace" >&2
+	failed=1
+}
 
 for unit in armada-controller-type.service armada-update-reserve.service \
 	bootc-generic-growpart.service; do

@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+
+# Software ISP frame buffers use the pageable system heap. Keep the reserved
+# CMA heaps unavailable so libcamera does not select a small platform heap and
+# fail before it can fall back to /dev/dma_heap/system.
+SUBSYSTEM=="dma_heap", KERNEL=="system", GROUP="video", MODE="0660"
+SUBSYSTEM=="dma_heap", KERNEL!="system", GROUP="root", MODE="0600"

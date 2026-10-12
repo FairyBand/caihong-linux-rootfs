@@ -72,7 +72,7 @@ rsync -a --delete \
 	"$source_tree/" "$source_stage/"
 
 chroot_env=(/usr/bin/env -i HOME=/root LANG=C
-	PATH=/usr/local/sbin:/usr/local/bin:/usr/bin)
+	PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 source_inside=/var/tmp/plasma-camera-caihong-src
 build_inside=/var/tmp/plasma-camera-caihong-build
 install_inside=/var/tmp/plasma-camera-caihong-install

@@ -8,6 +8,7 @@ project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 rootfs=${1:-}
 chroot_tool=${CHROOT_TOOL:-arch-chroot}
 jobs=${LIBCAMERA_BUILD_JOBS:-}
+libdir=${LIBCAMERA_LIBDIR:-lib}
 
 if [[ -z $rootfs || ! -d $rootfs ]]; then
 	echo "usage: $0 ROOTFS_DIR" >&2
@@ -19,6 +20,13 @@ case "$rootfs" in
 	/|/boot|/home|/usr|/var)
 		echo "refusing unsafe rootfs directory: $rootfs" >&2
 		exit 1
+		;;
+esac
+case "$libdir" in
+	lib|lib64) ;;
+	*)
+		echo "LIBCAMERA_LIBDIR must be lib or lib64" >&2
+		exit 2
 		;;
 esac
 
@@ -76,7 +84,7 @@ rsync -a --delete \
 printf '0.7.2+caihong\n' > "$source_stage/.tarball-version"
 
 chroot_env=(/usr/bin/env -i HOME=/root LANG=C
-	PATH=/usr/local/sbin:/usr/local/bin:/usr/bin)
+	PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 source_inside=/var/tmp/libcamera-caihong-src
 build_inside=/var/tmp/libcamera-caihong-build
 install_inside=/var/tmp/libcamera-caihong-install
@@ -87,7 +95,7 @@ echo "configuring Caihong libcamera"
 	--buildtype=release \
 	--prefix=/usr \
 	--sysconfdir=/etc \
-	--libdir=lib \
+	--libdir="$libdir" \
 	-Dwerror=false \
 	-Dandroid=disabled \
 	-Dcam=enabled \
@@ -114,12 +122,12 @@ echo "staging Caihong libcamera"
 required_outputs=(
 	usr/bin/cam
 	usr/bin/qcam
-	usr/lib/gstreamer-1.0/libgstlibcamera.so
-	usr/lib/libcamera-base.so.0.7.2
-	usr/lib/libcamera.so.0.7
-	usr/lib/libcamera.so.0.7.2
-	usr/lib/libcamera/ipa/ipa_soft_simple.so
-	usr/lib/libcamera/ipa/ipa_soft_simple.so.sign
+	"usr/$libdir/gstreamer-1.0/libgstlibcamera.so"
+	"usr/$libdir/libcamera-base.so.0.7.2"
+	"usr/$libdir/libcamera.so.0.7"
+	"usr/$libdir/libcamera.so.0.7.2"
+	"usr/$libdir/libcamera/ipa/ipa_soft_simple.so"
+	"usr/$libdir/libcamera/ipa/ipa_soft_simple.so.sign"
 	usr/libexec/libcamera/soft_ipa_proxy
 	usr/share/libcamera/ipa/simple/sc1320cs.yaml
 	usr/share/libcamera/ipa/simple/sc820cs.yaml
@@ -140,6 +148,7 @@ cat > "$rootfs/usr/share/caihong/libcamera-build-info" <<EOF
 build=caihong
 version=0.7.2+caihong
 source_commit=$source_commit
+libdir=$libdir
 pipelines=simple
 ipas=simple
 softisp_gpu=enabled

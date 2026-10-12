@@ -100,7 +100,7 @@ grep -qx 'ID=armada' "$rootfs/usr/lib/os-release" || \
 
 # Armada targets btrfs bootc installations and intentionally keeps its base
 # small. The Android direct-root image needs ext4 growth, SSH, the Caihong
-# hotspot dependencies, sensors and the ordinary Fedora camera applications.
+# hotspot dependencies, sensors and the camera build/runtime dependencies.
 # Install them from the same Fedora release used by the resolved Armada image.
 echo "installing direct-root runtime packages into Armada"
 resolver_saved=0
@@ -110,16 +110,32 @@ if [[ -e $rootfs/etc/resolv.conf || -L $rootfs/etc/resolv.conf ]]; then
 fi
 rm -f -- "$rootfs/etc/resolv.conf"
 cp -L /etc/resolv.conf "$rootfs/etc/resolv.conf"
+camera_build_packages=(
+	gcc gcc-c++ cmake extra-cmake-modules gettext meson ninja-build pkgconf-pkg-config
+	python3-jinja2 python3-ply python3-pyyaml
+	gnutls-devel libyaml-devel libevent-devel libunwind-devel openssl-devel
+	elfutils-libelf-devel libdrm-devel libjpeg-turbo-devel systemd-devel wayland-devel
+	mesa-libEGL-devel mesa-libGLES-devel
+	gstreamer1-devel gstreamer1-plugins-base-devel
+	qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtmultimedia-devel
+	qt6-qtsensors-devel qt6-qtsvg-devel
+	kf6-kconfig-devel kf6-kcoreaddons-devel kf6-ki18n-devel
+	kf6-kirigami-devel kf6-kirigami-addons-devel exiv2-devel
+)
+camera_build_remove=()
+for package in "${camera_build_packages[@]}"; do
+	if ! chroot "$rootfs" rpm -q "$package" >/dev/null 2>&1; then
+		camera_build_remove+=("$package")
+	fi
+done
 SYSTEMD_OFFLINE=1 chroot "$rootfs" /usr/bin/env -i \
 	HOME=/root LANG=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
 	/usr/bin/dnf5 -y install --setopt=install_weak_deps=False \
 	dnsmasq e2fsprogs hostapd iio-sensor-proxy openssh-server \
 	libqmi libqrtr-glib protobuf-c \
 	libcamera libcamera-ipa libcamera-tools libcamera-qcam \
-	libcamera-gstreamer plasma-camera
-SYSTEMD_OFFLINE=1 chroot "$rootfs" /usr/bin/env -i \
-	HOME=/root LANG=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
-	/usr/bin/dnf5 clean all
+	libcamera-gstreamer plasma-camera \
+	"${camera_build_packages[@]}"
 rm -f -- "$rootfs/etc/resolv.conf"
 if (( resolver_saved )); then
 	cp -a --no-dereference "$work_dir/resolv.conf.original" "$rootfs/etc/resolv.conf"
@@ -131,6 +147,24 @@ rsync -aHAX --numeric-ids --chown=0:0 \
 rsync -aHAX --numeric-ids --chown=0:0 \
 	"$project_dir/rootfs/armada/" "$rootfs/"
 rm -f -- "$rootfs/etc/sudoers.d/10-alarm"
+
+echo "building and installing the Caihong libcamera stack"
+CHROOT_TOOL=chroot LIBCAMERA_LIBDIR=lib64 \
+	"$project_dir/scripts/install-caihong-libcamera-rootfs.sh" "$rootfs"
+
+echo "building and installing Caihong Plasma Camera"
+CHROOT_TOOL=chroot \
+	"$project_dir/scripts/install-caihong-plasma-camera-rootfs.sh" "$rootfs"
+
+if (( ${#camera_build_remove[@]} )); then
+	echo "removing temporary camera build packages"
+	SYSTEMD_OFFLINE=1 chroot "$rootfs" /usr/bin/env -i \
+		HOME=/root LANG=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+		/usr/bin/dnf5 -y remove "${camera_build_remove[@]}"
+fi
+SYSTEMD_OFFLINE=1 chroot "$rootfs" /usr/bin/env -i \
+	HOME=/root LANG=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+	/usr/bin/dnf5 clean all
 
 # The regular image uses the Arch Linux ARM account. Armada owns its account
 # and home layout, so adjust only the three Caihong KDE integration files.
