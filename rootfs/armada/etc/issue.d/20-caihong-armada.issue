@@ -1,0 +1,4 @@
+Caihong Armada (experimental)
+
+This image combines the upstream Armada userspace with the Caihong kernel,
+modules, firmware and board services.

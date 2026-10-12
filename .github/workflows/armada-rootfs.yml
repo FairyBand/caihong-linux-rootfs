@@ -1,19 +1,20 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
-name: Build experimental Caihong SteamOS rootfs
+name: Build experimental Caihong Armada rootfs
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
-  group: caihong-steamos-rootfs-${{ github.ref }}
+  group: caihong-armada-rootfs-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  steamos-rootfs:
+  armada-rootfs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 360
     env:
@@ -29,16 +30,8 @@ jobs:
           sudo apt-get install -y \
             alsa-utils android-sdk-libsparse-utils bc bison build-essential \
             ccache curl dwarves e2fsprogs flex git kmod libarchive-tools \
-            libelf-dev libssl-dev python3 rsync shellcheck zstd
-
-      - name: Restore SteamOS package downloads
-        uses: actions/cache@v4
-        with:
-          path: |
-            downloads
-            build/steamos-pacman-cache
-          key: steamos-${{ runner.os }}-${{ hashFiles('steamos.env', 'scripts/package-archlinuxarm-rootfs.sh', 'scripts/package-steamos-rootfs.sh') }}
-          restore-keys: steamos-${{ runner.os }}-
+            libelf-dev libssl-dev m4 meson ninja-build python3 rsync \
+            shellcheck skopeo umoci zstd
 
       - name: Resolve component branches
         run: scripts/checkout-dependencies.sh
@@ -80,41 +73,35 @@ jobs:
       - name: Free kernel build space
         run: rm -rf .ccache linux build/linux
 
-      - name: Build SteamOS ARM64 rootfs
+      - name: Build Armada rootfs
         run: |
-          jobs=$(nproc)
           kernel_release=$(cat release/KERNEL_RELEASE)
           sudo -E env \
-            CHROOT_TOOL=chroot \
-            KERNEL_PACKAGE="$PWD/release/$(cat release/LINUX_CAIHONG_PACKAGE)" \
-            LIBCAMERA_BUILD_JOBS="$jobs" \
+            ARMADA_IMAGE=ghcr.io/armada-os/armada:stable \
             MODULE_TREE="$PWD/modules-current" \
-            OUTPUT_FORMAT=ext4 \
-            PLASMA_CAMERA_BUILD_JOBS="$jobs" \
+            RELEASE_DIR="$PWD/release" \
             SPARSE_IMAGE=1 \
-            USE_PROXY=0 \
-            scripts/package-steamos-rootfs.sh \
-            "release/caihong-steamos-rootfs-$kernel_release.ext4.sparse.img"
-          sudo chown -R "$USER:$USER" \
-            release build/steamos-pacman-cache downloads
+            scripts/package-armada-rootfs.sh \
+            "release/caihong-armada-rootfs-$kernel_release.ext4.sparse.img"
+          sudo chown -R "$USER:$USER" release
 
-      - name: Prepare distinct SteamOS artifacts
+      - name: Prepare distinct Armada artifacts
         run: |
           kernel_release=$(cat release/KERNEL_RELEASE)
           scripts/prepare-release-assets.py \
             --release-dir release \
-            --rootfs "release/caihong-steamos-rootfs-$kernel_release.ext4.sparse.img" \
+            --rootfs "release/caihong-armada-rootfs-$kernel_release.ext4.sparse.img" \
             --dependencies build/dependencies.resolved.env \
-            --assets release/steamos-assets \
-            --notes release/STEAMOS_NOTES.md
+            --assets release/armada-assets \
+            --notes release/ARMADA_NOTES.md
           cp release/release-manifest.json release/SHA256SUMS \
-            release/steamos-assets/
+            release/ARMADA_NOTES.md release/armada-assets/
 
-      - name: Upload SteamOS rootfs build
+      - name: Upload Armada rootfs build
         uses: actions/upload-artifact@v4
         with:
-          name: caihong-steamos-${{ github.run_id }}
-          path: release/steamos-assets/*
+          name: caihong-armada-${{ github.run_id }}
+          path: release/armada-assets/*
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

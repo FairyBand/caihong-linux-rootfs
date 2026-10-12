@@ -5,13 +5,11 @@ set -Eeuo pipefail
 CDPATH=
 
 project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
-rootfs_flavor=${ROOTFS_FLAVOR:-archlinuxarm}
 output=${1:-"$project_dir/archlinuxarm-caihong-rootfs.img"}
 source_archive=${2:-"$project_dir/downloads/ArchLinuxARM-aarch64-latest.tar.gz"}
 module_tree=${MODULE_TREE:-"$project_dir/modules-current"}
 mirror=${ARCHLINUXARM_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm}
 mirror=${mirror%/}
-package_server=${PACMAN_SERVER:-$mirror/\$arch/\$repo}
 package_cache=${PACKAGE_CACHE:-"$project_dir/build/pacman-cache"}
 ssc_bundle=${SSC_BUNDLE:-"$project_dir/firmware-assets/caihong-ssc"}
 output_format=${OUTPUT_FORMAT:-ext4}
@@ -34,19 +32,6 @@ else
 	zstd_threads_default=1
 fi
 zstd_threads=${ZSTD_THREADS:-$zstd_threads_default}
-
-case "$rootfs_flavor" in
-	archlinuxarm|steamos) ;;
-	*)
-		echo "ROOTFS_FLAVOR must be archlinuxarm or steamos" >&2
-		exit 1
-		;;
-esac
-if [[ $rootfs_flavor == steamos ]]; then
-	: "${ROOTFS_BASE_URL:?use scripts/package-steamos-rootfs.sh for SteamOS builds}"
-	: "${ROOTFS_ARCHIVE_SHA256:?SteamOS base archive digest is required}"
-	: "${PACMAN_SERVER:?pinned SteamOS package server is required}"
-fi
 
 if [[ ! -d $module_tree/lib/modules ]]; then
 	echo "module tree not found: $module_tree/lib/modules" >&2
@@ -156,97 +141,6 @@ packages=(
 	e2fsprogs
 )
 
-if [[ $rootfs_flavor == steamos ]]; then
-	# The public Holo core ARM64 snapshot intentionally has a smaller package
-	# set than Arch Linux ARM. Install every available Caihong dependency plus
-	# Valve's native gamescope compositor; the proprietary Steam Client is not
-	# part of this redistributable image.
-	packages=(
-		base-devel
-		git
-		bc
-		bison
-		flex
-		cpio
-		dtc
-		libelf
-		ncurses
-		openssl
-		pahole
-		perl
-		python
-		python-gobject
-		python-jinja
-		python-ply
-		python-yaml
-		rsync
-		sudo
-		cmake
-		extra-cmake-modules
-		meson
-		ninja
-		qt6-tools
-		qt6-multimedia
-		qt6-sensors
-		qt6-svg
-		kirigami
-		kcoreaddons
-		ki18n
-		kconfig
-		exiv2
-		pkgconf
-		networkmanager
-		wpa_supplicant
-		hostapd
-		dnsmasq
-		nftables
-		iw
-		bluez
-		bluez-utils
-		openssh
-		usbutils
-		pciutils
-		i2c-tools
-		evtest
-		lsof
-		tcpdump
-		plasma-desktop
-		plasma-workspace
-		plasma-nm
-		plasma-pa
-		systemsettings
-		kde-gtk-config
-		breeze
-		breeze-icons
-		konsole
-		dolphin
-		mesa
-		mesa-utils
-		vulkan-freedreno
-		vulkan-tools
-		xorg-server
-		xorg-xwayland
-		gamescope
-		pipewire
-		pipewire-pulse
-		wireplumber
-		alsa-utils
-		v4l-utils
-		iio-sensor-proxy
-		libssc
-		libcamera
-		libcamera-ipa
-		libcamera-tools
-		gst-plugin-libcamera
-		upower
-		xdg-user-dirs
-		noto-fonts
-		noto-fonts-cjk
-		chromium
-		e2fsprogs
-	)
-fi
-
 # The generic rootfs ships a distribution kernel.  Caihong boots the custom
 # Image and DTB from the Android boot image, so these packages and their /boot
 # payloads/module tree are both unnecessary and potentially confusing.
@@ -268,32 +162,6 @@ unwanted_boot_packages=(
 	linux-firmware-ti
 	linux-firmware-whence
 )
-
-if [[ $rootfs_flavor == steamos ]]; then
-	unwanted_boot_packages=(
-		linux
-		linux-headers
-		linux-firmware
-		linux-firmware-amd
-		linux-firmware-amdgpu
-		linux-firmware-atheros
-		linux-firmware-broadcom
-		linux-firmware-cirrus
-		linux-firmware-intel
-		linux-firmware-liquidio
-		linux-firmware-marvell
-		linux-firmware-mediatek
-		linux-firmware-mellanox
-		linux-firmware-nfp
-		linux-firmware-nvidia
-		linux-firmware-other
-		linux-firmware-qcom
-		linux-firmware-qlogic
-		linux-firmware-radeon
-		linux-firmware-realtek
-		linux-firmware-whence
-	)
-fi
 
 if [[ -n ${EXTRA_PACKAGES:-} ]]; then
 	# EXTRA_PACKAGES is a whitespace-separated list of additional Arch packages.
@@ -484,10 +352,9 @@ cleanup()
 }
 trap cleanup EXIT HUP INT TERM
 
-echo "populating the base $rootfs_flavor rootfs"
+echo "populating the base Arch Linux ARM rootfs"
 ALLOW_DIRECTORY=1 \
 	ARCHLINUXARM_MIRROR="$mirror" \
-	PACMAN_SERVER="$package_server" \
 	ROOT_SPEC=PARTLABEL=linux \
 	ROOT_FSTYPE=ext4 \
 	MODULE_TREE="$module_tree" \
@@ -501,10 +368,6 @@ ALLOW_DIRECTORY=1 \
 # Arch Linux ARM archive so rebuilt images remain reproducible.
 rsync -aHAX --numeric-ids --chown=0:0 \
 	"$project_dir/rootfs/archlinuxarm/" "$rootfs/"
-if [[ $rootfs_flavor == steamos ]]; then
-	rsync -aHAX --numeric-ids --chown=0:0 \
-		"$project_dir/rootfs/steamos/" "$rootfs/"
-fi
 if [[ $(stat -c '%u:%g' "$rootfs") != 0:0 || \
 	$(stat -c '%u:%g' "$rootfs/etc") != 0:0 ]]; then
 	echo "board overlay changed rootfs directory ownership" >&2
@@ -566,15 +429,9 @@ if [[ $use_proxy == 1 ]]; then
 	done
 fi
 
-if [[ $rootfs_flavor == steamos ]]; then
-	package_keyring=archlinux
-else
-	package_keyring=archlinuxarm
-fi
-echo "initializing the $package_keyring package keyring"
+echo "initializing the Arch Linux ARM package keyring"
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" pacman-key --init
-"$chroot_tool" "$rootfs" "${chroot_env[@]}" \
-	pacman-key --populate "$package_keyring"
+"$chroot_tool" "$rootfs" "${chroot_env[@]}" pacman-key --populate archlinuxarm
 
 echo "removing boot-owned kernel and generic firmware packages"
 for package in "${unwanted_boot_packages[@]}"; do
@@ -607,12 +464,8 @@ save_package_cache
 echo "reapplying the Caihong rootfs overlay after package installation"
 rsync -aHAX --numeric-ids --chown=0:0 \
 	"$project_dir/rootfs/archlinuxarm/" "$rootfs/"
-if [[ $rootfs_flavor == steamos ]]; then
-	rsync -aHAX --numeric-ids --chown=0:0 \
-		"$project_dir/rootfs/steamos/" "$rootfs/"
-fi
 
-echo "enabling NetworkManager, Bluetooth and the graphical session"
+echo "enabling NetworkManager, Bluetooth and the Plasma display manager"
 # These operations only create/remove symlinks. Running the host systemctl in
 # offline --root mode avoids D-Bus and chroot-detection failures under qemu in
 # an unprivileged user namespace.
@@ -623,30 +476,15 @@ systemctl --root="$rootfs" disable \
 systemctl --root="$rootfs" disable hostapd.service dnsmasq.service \
 	2>/dev/null || true
 systemctl --root="$rootfs" enable \
-	NetworkManager.service bluetooth.service sshd.service
-if [[ $rootfs_flavor == steamos ]]; then
-	if ! "$chroot_tool" "$rootfs" "${chroot_env[@]}" id alarm >/dev/null 2>&1; then
-		"$chroot_tool" "$rootfs" "${chroot_env[@]}" \
-			useradd --create-home --shell /usr/bin/bash alarm
-	fi
-	printf 'root:root\nalarm:alarm\n' | \
-		"$chroot_tool" "$rootfs" "${chroot_env[@]}" chpasswd
-	systemctl --root="$rootfs" enable caihong-steamos-session.service
-else
-	systemctl --root="$rootfs" enable \
-		power-profiles-daemon.service sddm.service
-fi
+	NetworkManager.service bluetooth.service power-profiles-daemon.service \
+	sshd.service sddm.service
 systemctl --root="$rootfs" set-default graphical.target
 systemctl --root="$rootfs" enable caihong-grow-rootfs.service
 systemctl --root="$rootfs" enable caihong-fix-kwin-brightness.service
 systemctl --root="$rootfs" enable caihong-clean-pogo-kde.service
 systemctl --root="$rootfs" enable caihong-bluetooth-autostart.service
-alarm_groups=audio,input,video,wheel
-if [[ $rootfs_flavor == steamos ]]; then
-	alarm_groups=audio,input,render,video,wheel
-fi
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" \
-	usermod -aG "$alarm_groups" alarm
+	usermod -aG audio,input,video,wheel alarm
 chmod 0440 "$rootfs/etc/sudoers.d/10-alarm"
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" visudo -cf /etc/sudoers
 
@@ -763,20 +601,14 @@ if (( resolver_saved )); then
 fi
 unmount_rootfs
 
-ROOTFS_FLAVOR="$rootfs_flavor" \
-	"$project_dir/scripts/verify-archlinuxarm-rootfs.sh" "$rootfs"
+"$project_dir/scripts/verify-archlinuxarm-rootfs.sh" "$rootfs"
 
 {
 	printf 'device=caihong\n'
 	printf 'architecture=aarch64\n'
-	printf 'rootfs_flavor=%s\n' "$rootfs_flavor"
 	printf 'boot_roots=PARTLABEL=linux,PARTLABEL=userdata\n'
 	printf 'boot_kernel=android-boot-v2-direct-root\n'
-	printf 'package_server=%s\n' "$package_server"
-	if [[ $rootfs_flavor == steamos ]]; then
-		printf 'steamos_snapshot=%s\n' "${STEAMOS_SNAPSHOT:-unknown}"
-		printf 'steam_client=not-included\n'
-	fi
+	printf 'package_mirror=%s\n' "$mirror"
 	printf 'kernel_release=%s\n' "$kernel_release"
 	printf 'kernel_package=%s\n' "${kernel_package##*/}"
 	printf 'ssc_bundle_version=%s\n' "$(head -n 1 "$ssc_bundle/VERSION")"

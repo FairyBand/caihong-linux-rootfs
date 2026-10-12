@@ -41,26 +41,27 @@ reconstructed zstd stream and the decompressed flashable image, together with
 the logical filesystem size and resolved source revisions. No ZIP archive is
 used for installable assets.
 
-## Experimental SteamOS ARM64 rootfs
+## Experimental Armada rootfs
 
-The `Build experimental Caihong SteamOS rootfs` workflow produces a separate
-`caihong-steamos-rootfs-<kernel-release>.ext4.sparse.img.zst` artifact. It is
+The `Build experimental Caihong Armada rootfs` workflow produces a separate
+`caihong-armada-rootfs-<kernel-release>.ext4.sparse.img.zst` artifact. It is
 built only on a GitHub ARM64 runner and does not replace the regular
 `caihong-rootfs-*` release.
 
-The image starts from Valve's pinned public Holo core ARM64 snapshot
-`mash-20260305`. It installs the open SteamOS-specific `gamescope` compositor,
-Valve's snapshot builds of Mesa/Freedreno, PipeWire and WirePlumber, and the
-same Caihong kernel modules, firmware, camera stack and board utilities as the
-regular rootfs. The public snapshot does not provide `gamescope-session`,
-`jupiter-*` or an ARM64 Steam Client package, so this initial image boots a
-Plasma Wayland setup desktop.
+The image is assembled directly from the upstream
+[`ghcr.io/armada-os/armada:stable`](https://github.com/armada-os/armada)
+OCI image and keeps the Armada name, `armada` desktop account, Steam Client,
+FEX, Proton, Gamescope, KDE Plasma and the other Armada components together.
+The builder overlays the matching Caihong kernel modules, firmware, audio,
+sensors, input mappings and board utilities. Each image records the resolved
+Armada OCI digest in `/etc/caihong-rootfs-build-info`.
 
-The proprietary Steam Client and components from Valve's recovery image are
-not redistributed. Valve's [SteamOS download terms](https://store.steampowered.com/steamos/download/?l=english&ver=steamframe)
-do not permit redistributing the Steam Client without a separate licence. A
-future client installer must download it directly from Valve after the user
-accepts those terms.
+This is a conventional direct-root ext4 image for the existing Android
+`linux` or `userdata` partition layout. Armada's bootc atomic update path is
+not enabled in this packaging; install a newly built image to update it. The
+default Armada account and password are both `armada` and should be changed
+after the first boot. The installation steps below also apply to Armada; use
+the matching `caihong-armada-rootfs-*` file in place of `caihong-rootfs-*`.
 
 ## Installation
 
@@ -270,13 +271,16 @@ sudo -E env CHROOT_TOOL=chroot MODULE_TREE="$PWD/modules-current" \
 
 GitHub Actions performs native AArch64 builds and persists ccache between
 runs. Every Release description records the resolved component commits.
-The experimental SteamOS image is built separately from the Actions page by
-running `Build experimental Caihong SteamOS rootfs`; its artifact name starts
-with `caihong-steamos-` and its rootfs filename starts with
-`caihong-steamos-rootfs-`.
+The experimental Armada image is built separately from the Actions page by
+running `Build experimental Caihong Armada rootfs`; its artifact name starts
+with `caihong-armada-` and its rootfs filename starts with
+`caihong-armada-rootfs-`.
 
 ## Licensing
 
 Project-authored build scripts and utilities are licensed under GPL-2.0-only
 unless a file states another SPDX license. Camera tuning data keeps its stated
 CC0 license. Bundled device firmware remains subject to its vendor terms.
+Armada's project code is GPL-2.0-or-later, while its bundled components retain
+their own terms. The Steam Client included by upstream Armada is proprietary
+software subject to Valve's applicable Steam agreement and distribution terms.

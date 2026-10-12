@@ -19,7 +19,7 @@ jobs:
           sh -n \
             packaging/linux-caihong/install-current-slot \
             packaging/linux-caihong/linux-caihong.install \
-            steamos.env
+            armada.env
           python3 -m compileall -q scripts
           shellcheck -x \
             scripts/build-boot-v2.sh \
@@ -27,7 +27,8 @@ jobs:
             scripts/build-linux-caihong-package.sh \
             scripts/checkout-dependencies.sh \
             scripts/install-caihong-modules.sh \
-            scripts/package-steamos-rootfs.sh \
+            scripts/package-armada-rootfs.sh \
+            scripts/verify-armada-rootfs.sh \
             packaging/linux-caihong/install-current-slot \
             rootfs/archlinuxarm/usr/local/sbin/caihong-bluetooth-autostart \
             rootfs/archlinuxarm/usr/local/sbin/caihong-hardware-mac \
