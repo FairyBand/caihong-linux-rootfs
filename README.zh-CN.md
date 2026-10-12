@@ -22,7 +22,7 @@ root=PARTLABEL=linux rootfstype=ext4 rootwait rw
 | --- | --- | --- |
 | 显示、GPU | 基本正常 | 3000×2120 内屏、Adreno GPU、亮度调节；偶尔仍会出现小面积屏幕花屏。 |
 | 触摸与手写笔 | 正常 | 10 点触控、悬停、压感、绘画、休眠恢复、磁吸充电和首次自动配对已验证。 |
-| Pogo 键盘 | 基本正常 | 键盘、触控板和功能键映射可用；按键时触控板可能短暂停顿。 |
+| Pogo 键盘 | 基本正常 | 面向 Android 的顶部按键已重新映射为 F1–F12，搜索键作为 Fn；键盘和触控板可用，按键时触控板可能短暂停顿。 |
 | Wi-Fi | 基本正常 | 联网、硬件 MAC 和 STA/AP 并发可用；休眠恢复偶尔偏慢，BDF 目前使用兼容的厂商条目而非 Caihong 专属校准。 |
 | 蓝牙 | 正常 | 扫描、配对、BLE、HID 和手写笔电量可用。 |
 | 摄像头与闪光灯 | 基本正常 | 前后摄、自动对焦、软件 ISP、模组校准、手电筒和同步单闪可用；没有原厂硬件 ISP 与完整原厂调校。 |
@@ -47,6 +47,23 @@ root=PARTLABEL=linux rootfstype=ext4 rootwait rw
 
 Release 说明会记录每个资产、重组后 zstd 压缩流和解压后可刷写镜像的 SHA-256，
 以及文件系统逻辑大小和实际使用的源码版本。可安装资产不会使用 ZIP 打包。
+
+## 实验性 SteamOS ARM64 rootfs
+
+`Build experimental Caihong SteamOS rootfs` 工作流会生成独立的
+`caihong-steamos-rootfs-<kernel-release>.ext4.sparse.img.zst` 产物。该镜像
+只在 GitHub ARM64 runner 上构建，不会替换普通的 `caihong-rootfs-*` 发布镜像。
+
+镜像以 Valve 固定的公开 Holo core ARM64 快照 `mash-20260305` 为基础，安装
+SteamOS 特有的开源 `gamescope` 合成器、Valve 快照中的 Mesa/Freedreno、
+PipeWire 和 WirePlumber，以及与普通 rootfs 相同的 Caihong 内核模块、固件、
+相机栈和设备工具。公开快照没有提供 `gamescope-session`、`jupiter-*` 或 ARM64
+Steam Client 软件包，因此首个版本进入 Plasma Wayland 配置桌面。
+
+本项目不会重新分发专有 Steam Client 或 Valve 恢复镜像中的受限组件。Valve 的
+[SteamOS 下载条款](https://store.steampowered.com/steamos/download/?l=schinese&ver=steamframe)
+不允许在没有单独许可时重新分发 Steam Client；后续客户端安装程序必须在用户接受
+相应条款后直接从 Valve 下载。
 
 ## 安装方法
 
@@ -244,6 +261,9 @@ sudo -E env CHROOT_TOOL=chroot MODULE_TREE="$PWD/modules-current" \
 
 GitHub Actions 使用原生 AArch64 构建，并在不同运行之间保存 ccache。每个
 Release 说明都会记录实际使用的各组件提交。
+实验性 SteamOS 镜像需要在 Actions 页面单独运行
+`Build experimental Caihong SteamOS rootfs`；artifact 名称以
+`caihong-steamos-` 开头，rootfs 文件名以 `caihong-steamos-rootfs-` 开头。
 
 ## 许可证
 

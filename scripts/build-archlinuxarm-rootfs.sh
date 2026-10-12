@@ -9,7 +9,10 @@ target=${1:-}
 archive=${2:-"$project_dir/downloads/ArchLinuxARM-aarch64-latest.tar.gz"}
 mirror=${ARCHLINUXARM_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm}
 mirror=${mirror%/}
-url=${ARCHLINUXARM_URL:-$mirror/os/ArchLinuxARM-aarch64-latest.tar.gz}
+url=${ROOTFS_BASE_URL:-${ARCHLINUXARM_URL:-$mirror/os/ArchLinuxARM-aarch64-latest.tar.gz}}
+archive_sha256=${ROOTFS_ARCHIVE_SHA256:-}
+distribution_name=${ROOTFS_DISTRIBUTION_NAME:-Arch Linux ARM}
+pacman_server=${PACMAN_SERVER:-$mirror/\$arch/\$repo}
 root_spec=${ROOT_SPEC:-PARTLABEL=linux}
 root_fstype=${ROOT_FSTYPE:-ext4}
 module_tree=${MODULE_TREE:-"$project_dir/modules-current"}
@@ -50,10 +53,17 @@ if [ "$install_kernel_modules" = 1 ]; then
 	}
 fi
 
-case "$mirror" in
+case "$url" in
 	http://*|https://*) ;;
 	*)
-		echo "ARCHLINUXARM_MIRROR must be an HTTP(S) URL: $mirror" >&2
+		echo "ROOTFS_BASE_URL must be an HTTP(S) URL: $url" >&2
+		exit 1
+		;;
+esac
+case "$pacman_server" in
+	http://*|https://*) ;;
+	*)
+		echo "PACMAN_SERVER must be an HTTP(S) URL template: $pacman_server" >&2
 		exit 1
 		;;
 esac
@@ -108,17 +118,20 @@ if [ ! -f "$archive" ]; then
 fi
 
 echo "validating $archive"
+if [ -n "$archive_sha256" ]; then
+	printf '%s  %s\n' "$archive_sha256" "$archive" | sha256sum -c -
+fi
 bsdtar -tf "$archive" >/dev/null
 
-echo "extracting Arch Linux ARM into $target"
+echo "extracting $distribution_name into $target"
 bsdtar --numeric-owner -xpf "$archive" -C "$target"
 
 mkdir -p "$target/etc/pacman.d"
 {
-	echo '# Caihong Arch Linux ARM package mirror'
-	printf 'Server = %s/$arch/$repo\n' "$mirror"
+	printf '# Caihong %s package snapshot\n' "$distribution_name"
+	printf 'Server = %s\n' "$pacman_server"
 } > "$target/etc/pacman.d/mirrorlist"
-echo "configured pacman mirror: $mirror"
+echo "configured pacman server: $pacman_server"
 
 # The current Caihong kernel has seccomp support, but CONFIG_SECURITY_LANDLOCK
 # is disabled.  Keep pacman's syscall sandbox and downloader user separation,
@@ -213,6 +226,6 @@ if [ "${CHROOT_INIT:-0}" = 1 ]; then
 fi
 
 sync
-echo "Arch Linux ARM rootfs is ready at $target"
+echo "$distribution_name rootfs is ready at $target"
 echo "root spec: $root_spec ($root_fstype)"
 echo "default upstream credentials: root/root and alarm/alarm"

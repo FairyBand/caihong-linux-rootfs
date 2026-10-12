@@ -12,7 +12,7 @@ development release for this device; review the status table before installing.
 | --- | --- | --- |
 | Display and GPU | Mostly working | The internal 3000×2120 display, Adreno GPU and brightness control work. Occasional small panel artifacts remain. |
 | Touch and pen | Working | 10-point touch, hover, pressure, drawing, suspend/resume, magnetic pen charging and clean first-time pairing have been tested. |
-| Pogo keyboard | Mostly working | Keyboard, touchpad and function-key mapping work. A key press can briefly pause the touchpad. |
+| Pogo keyboard | Mostly working | The Android-oriented top row is remapped to F1–F12, with Search acting as Fn. The keyboard and touchpad work; a key press can briefly pause the touchpad. |
 | Wi-Fi | Mostly working | Client mode, factory MAC address and concurrent STA/AP mode work. Resume can be slow; the current BDF is a compatible vendor entry rather than a Caihong-specific calibration. |
 | Bluetooth | Working | Scanning, pairing, BLE, HID and pen battery reporting work. |
 | Cameras and flash | Mostly working | Front and rear cameras, autofocus, software ISP, calibration, torch and synchronized single flash work. The vendor hardware ISP and complete vendor tuning are unavailable. |
@@ -40,6 +40,27 @@ The Release description records the SHA-256 digests of every asset, the
 reconstructed zstd stream and the decompressed flashable image, together with
 the logical filesystem size and resolved source revisions. No ZIP archive is
 used for installable assets.
+
+## Experimental SteamOS ARM64 rootfs
+
+The `Build experimental Caihong SteamOS rootfs` workflow produces a separate
+`caihong-steamos-rootfs-<kernel-release>.ext4.sparse.img.zst` artifact. It is
+built only on a GitHub ARM64 runner and does not replace the regular
+`caihong-rootfs-*` release.
+
+The image starts from Valve's pinned public Holo core ARM64 snapshot
+`mash-20260305`. It installs the open SteamOS-specific `gamescope` compositor,
+Valve's snapshot builds of Mesa/Freedreno, PipeWire and WirePlumber, and the
+same Caihong kernel modules, firmware, camera stack and board utilities as the
+regular rootfs. The public snapshot does not provide `gamescope-session`,
+`jupiter-*` or an ARM64 Steam Client package, so this initial image boots a
+Plasma Wayland setup desktop.
+
+The proprietary Steam Client and components from Valve's recovery image are
+not redistributed. Valve's [SteamOS download terms](https://store.steampowered.com/steamos/download/?l=english&ver=steamframe)
+do not permit redistributing the Steam Client without a separate licence. A
+future client installer must download it directly from Valve after the user
+accepts those terms.
 
 ## Installation
 
@@ -249,6 +270,10 @@ sudo -E env CHROOT_TOOL=chroot MODULE_TREE="$PWD/modules-current" \
 
 GitHub Actions performs native AArch64 builds and persists ccache between
 runs. Every Release description records the resolved component commits.
+The experimental SteamOS image is built separately from the Actions page by
+running `Build experimental Caihong SteamOS rootfs`; its artifact name starts
+with `caihong-steamos-` and its rootfs filename starts with
+`caihong-steamos-rootfs-`.
 
 ## Licensing
 

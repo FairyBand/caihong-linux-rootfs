@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+name: Build experimental Caihong SteamOS rootfs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caihong-steamos-rootfs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  steamos-rootfs:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    env:
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            alsa-utils android-sdk-libsparse-utils bc bison build-essential \
+            ccache curl dwarves e2fsprogs flex git kmod libarchive-tools \
+            libelf-dev libssl-dev python3 rsync shellcheck zstd
+
+      - name: Restore SteamOS package downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            downloads
+            build/steamos-pacman-cache
+          key: steamos-${{ runner.os }}-${{ hashFiles('steamos.env', 'scripts/package-archlinuxarm-rootfs.sh', 'scripts/package-steamos-rootfs.sh') }}
+          restore-keys: steamos-${{ runner.os }}-
+
+      - name: Resolve component branches
+        run: scripts/checkout-dependencies.sh
+
+      - name: Restore compiler cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('dependencies.env', 'linux/arch/arm64/configs/caihong_defconfig') }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('dependencies.env', 'linux/arch/arm64/configs/caihong_defconfig') }}-
+            ccache-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Configure compiler cache
+        run: |
+          ccache --max-size=2G
+          ccache --set-config=compression=true
+          ccache --set-config=compression_level=6
+          ccache --zero-stats
+
+      - name: Build matching kernel and boot images
+        run: |
+          jobs=$(nproc)
+          JOBS=$jobs ZSTD_THREADS=$jobs FORCE=1 \
+            KERNEL_CC="ccache gcc" KERNEL_HOSTCC="ccache gcc" \
+            scripts/build-kernel-release.sh
+
+      - name: Show compiler cache statistics
+        if: always()
+        run: ccache --show-stats
+
+      - name: Save compiler cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('dependencies.env', 'linux/arch/arm64/configs/caihong_defconfig') }}-${{ github.run_id }}
+
+      - name: Free kernel build space
+        run: rm -rf .ccache linux build/linux
+
+      - name: Build SteamOS ARM64 rootfs
+        run: |
+          jobs=$(nproc)
+          kernel_release=$(cat release/KERNEL_RELEASE)
+          sudo -E env \
+            CHROOT_TOOL=chroot \
+            KERNEL_PACKAGE="$PWD/release/$(cat release/LINUX_CAIHONG_PACKAGE)" \
+            LIBCAMERA_BUILD_JOBS="$jobs" \
+            MODULE_TREE="$PWD/modules-current" \
+            OUTPUT_FORMAT=ext4 \
+            PLASMA_CAMERA_BUILD_JOBS="$jobs" \
+            SPARSE_IMAGE=1 \
+            USE_PROXY=0 \
+            scripts/package-steamos-rootfs.sh \
+            "release/caihong-steamos-rootfs-$kernel_release.ext4.sparse.img"
+          sudo chown -R "$USER:$USER" \
+            release build/steamos-pacman-cache downloads
+
+      - name: Prepare distinct SteamOS artifacts
+        run: |
+          kernel_release=$(cat release/KERNEL_RELEASE)
+          scripts/prepare-release-assets.py \
+            --release-dir release \
+            --rootfs "release/caihong-steamos-rootfs-$kernel_release.ext4.sparse.img" \
+            --dependencies build/dependencies.resolved.env \
+            --assets release/steamos-assets \
+            --notes release/STEAMOS_NOTES.md
+          cp release/release-manifest.json release/SHA256SUMS \
+            release/steamos-assets/
+
+      - name: Upload SteamOS rootfs build
+        uses: actions/upload-artifact@v4
+        with:
+          name: caihong-steamos-${{ github.run_id }}
+          path: release/steamos-assets/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

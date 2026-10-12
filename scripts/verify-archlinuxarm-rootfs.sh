@@ -6,11 +6,20 @@ CDPATH=
 
 project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 target=${1:-}
+rootfs_flavor=${ROOTFS_FLAVOR:-archlinuxarm}
 if [ -z "$target" ] || [ ! -d "$target" ]; then
 	echo "usage: $0 ROOTFS_DIR" >&2
 	exit 2
 fi
 target=$(cd -- "$target" && pwd)
+
+case "$rootfs_flavor" in
+	archlinuxarm|steamos) ;;
+	*)
+		echo "ROOTFS_FLAVOR must be archlinuxarm or steamos" >&2
+		exit 1
+		;;
+esac
 
 required_paths='etc/NetworkManager/conf.d/20-caihong-hardware-mac.conf
 etc/NetworkManager/conf.d/30-caihong-hotspot.conf
@@ -35,7 +44,6 @@ etc/systemd/system/caihong-pen-charge.timer
 etc/systemd/system/caihong-pen-pair.service
 etc/systemd/system/caihong-pen-pair.timer
 etc/systemd/system/bluetooth.target.wants/bluetooth.service
-etc/systemd/system/display-manager.service
 etc/systemd/system/multi-user.target.wants/NetworkManager.service
 etc/systemd/system/multi-user.target.wants/caihong-bluetooth-autostart.service
 etc/systemd/system/multi-user.target.wants/caihong-hardware-mac.service
@@ -97,6 +105,16 @@ usr/lib/firmware/awinic/caihong-aw88261-acf.bin
 usr/lib/firmware/awinic/caihong-aw88261-speaker-cal.bin
 usr/lib/firmware/novatek/DT-novatek-nt36532.bin
 usr/lib/firmware/qcom/sm8650/SM8650-MTP-tplg.bin'
+
+if [ "$rootfs_flavor" = steamos ]; then
+	required_paths="$required_paths
+etc/systemd/system/caihong-steamos-session.service
+etc/systemd/system/graphical.target.wants/caihong-steamos-session.service
+etc/issue.d/20-caihong-steamos.issue"
+else
+	required_paths="$required_paths
+etc/systemd/system/display-manager.service"
+fi
 
 failed=0
 
@@ -319,10 +337,25 @@ if grep -q '^ConditionPathExists=.*/kwinoutputconfig.json$' \
 	failed=1
 fi
 
-required_packages='bluez bluez-utils openssh networkmanager hostapd dnsmasq nftables pipewire
+if [ "$rootfs_flavor" = steamos ]; then
+	required_packages='bluez bluez-utils openssh networkmanager hostapd dnsmasq nftables pipewire
+pipewire-pulse wireplumber alsa-utils iio-sensor-proxy libssc libcamera
+libcamera-ipa libcamera-tools gst-plugin-libcamera chromium gamescope plasma-desktop
+plasma-workspace python-jinja python-ply python-yaml qt6-tools'
+	if ! grep -qx 'ID=holo-core' "$target/etc/os-release" 2>/dev/null; then
+		echo "SteamOS rootfs does not retain the Valve Holo core identity" >&2
+		failed=1
+	fi
+	if [ -e "$target/usr/bin/steam" ] || [ -e "$target/usr/bin/steam-runtime" ]; then
+		echo "SteamOS rootfs must not redistribute the proprietary Steam Client" >&2
+		failed=1
+	fi
+else
+	required_packages='bluez bluez-utils openssh networkmanager hostapd dnsmasq nftables pipewire
 pipewire-pulse wireplumber alsa-utils iio-sensor-proxy libssc libcamera
 libcamera-ipa libcamera-tools gst-plugin-libcamera plasma-camera krita firefox
 python-jinja python-ply python-yaml qt6-tools'
+fi
 package_db=$target/var/lib/pacman/local
 for package in $required_packages; do
 	if ! find "$package_db" -mindepth 1 -maxdepth 1 -type d \

@@ -18,7 +18,8 @@ jobs:
           find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
           sh -n \
             packaging/linux-caihong/install-current-slot \
-            packaging/linux-caihong/linux-caihong.install
+            packaging/linux-caihong/linux-caihong.install \
+            steamos.env
           python3 -m compileall -q scripts
           shellcheck -x \
             scripts/build-boot-v2.sh \
@@ -26,6 +27,7 @@ jobs:
             scripts/build-linux-caihong-package.sh \
             scripts/checkout-dependencies.sh \
             scripts/install-caihong-modules.sh \
+            scripts/package-steamos-rootfs.sh \
             packaging/linux-caihong/install-current-slot \
             rootfs/archlinuxarm/usr/local/sbin/caihong-bluetooth-autostart \
             rootfs/archlinuxarm/usr/local/sbin/caihong-hardware-mac \
