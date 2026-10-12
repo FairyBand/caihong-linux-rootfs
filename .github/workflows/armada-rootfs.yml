@@ -4,9 +4,19 @@ name: Build experimental Caihong Armada rootfs
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to update
+        required: true
+        default: v0.1.0
+      publish_release:
+        description: Upload the Armada rootfs to the GitHub release
+        required: true
+        type: boolean
+        default: false
 
 permissions:
-  contents: read
+  contents: write
   packages: read
 
 concurrency:
@@ -94,8 +104,48 @@ jobs:
             --dependencies build/dependencies.resolved.env \
             --assets release/armada-assets \
             --notes release/ARMADA_NOTES.md
-          cp release/release-manifest.json release/SHA256SUMS \
-            release/ARMADA_NOTES.md release/armada-assets/
+          cp release/release-manifest.json \
+            release/armada-assets/caihong-armada-release-manifest.json
+          cp release/ARMADA_NOTES.md release/armada-assets/
+          (
+            cd release/armada-assets
+            sha256sum caihong-armada-rootfs-* > SHA256SUMS.armada
+          )
+
+      - name: Publish Armada rootfs to GitHub release
+        if: inputs.publish_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" >/dev/null
+
+          publish=()
+          for path in \
+            release/armada-assets/caihong-armada-rootfs-* \
+            release/armada-assets/caihong-armada-release-manifest.json \
+            release/armada-assets/SHA256SUMS.armada \
+            release/armada-assets/ARMADA_NOTES.md; do
+            [[ -f $path ]] || continue
+            publish+=("$path")
+          done
+          ((${#publish[@]} > 3))
+          gh release upload "$RELEASE_TAG" "${publish[@]}" --clobber
+
+          declare -A current_assets=()
+          for path in "${publish[@]}"; do
+            current_assets["${path##*/}"]=1
+          done
+          while IFS= read -r asset; do
+            case "$asset" in
+              caihong-armada-rootfs-*|caihong-armada-release-manifest.json|SHA256SUMS.armada|ARMADA_NOTES.md)
+                if [[ -z ${current_assets[$asset]+present} ]]; then
+                  gh release delete-asset "$RELEASE_TAG" "$asset" --yes
+                fi
+                ;;
+            esac
+          done < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
 
       - name: Upload Armada rootfs build
         uses: actions/upload-artifact@v4
