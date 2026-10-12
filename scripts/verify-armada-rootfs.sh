@@ -59,6 +59,12 @@ required_paths=(
 	etc/issue.d/20-caihong-armada.issue
 	usr/share/doc/caihong-armada/SOURCES-AND-LICENSES.md
 	usr/local/libexec/caihong-nvram-mac
+	usr/local/sbin/caihong-npu-info
+	usr/lib64/libcdsprpc.so.1
+	usr/lib64/caihong-npu/libcalculator.so
+	usr/share/caihong-npu/dsp/v75/fastrpc_shell_unsigned_3
+	usr/share/caihong-npu/dsp/v75/libcalculator_skel.so
+	usr/share/licenses/caihong-npu/LICENSE.fastrpc
 	usr/local/sbin/qbootctl
 	usr/local/sbin/caihong-slot
 	usr/local/sbin/caihong-flashlight

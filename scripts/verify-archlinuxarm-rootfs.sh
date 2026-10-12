@@ -47,6 +47,12 @@ etc/systemd/system/timers.target.wants/caihong-pen-autoconnect.timer
 etc/systemd/system/timers.target.wants/caihong-pen-charge.timer
 etc/systemd/system/timers.target.wants/caihong-pen-pair.timer
 usr/local/libexec/caihong-nvram-mac
+usr/local/sbin/caihong-npu-info
+usr/lib/libcdsprpc.so.1
+usr/lib/caihong-npu/libcalculator.so
+usr/share/caihong-npu/dsp/v75/fastrpc_shell_unsigned_3
+usr/share/caihong-npu/dsp/v75/libcalculator_skel.so
+usr/share/licenses/caihong-npu/LICENSE.fastrpc
 usr/local/sbin/caihong-bluetooth-autostart
 usr/local/sbin/caihong-hardware-mac
 usr/local/sbin/caihong-hotspot

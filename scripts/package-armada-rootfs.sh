@@ -14,6 +14,7 @@ armada_image=${ARMADA_IMAGE:-ghcr.io/armada-os/armada:stable}
 module_tree=${MODULE_TREE:-"$project_dir/modules-current"}
 release_dir=${RELEASE_DIR:-"$project_dir/release"}
 ssc_bundle=${SSC_BUNDLE:-"$project_dir/firmware-assets/caihong-ssc"}
+npu_bundle=${NPU_BUNDLE:-"$project_dir/firmware-assets/caihong-npu"}
 image_min_free_mib=${IMAGE_MIN_FREE_MIB:-2048}
 image_slack_percent=${IMAGE_SLACK_PERCENT:-25}
 sparse_image=${SPARSE_IMAGE:-1}
@@ -42,6 +43,7 @@ done
 [[ $(uname -m) == aarch64 || $(uname -m) == arm64 ]] || \
 	fail "the Armada rootfs must be assembled on an AArch64 host"
 [[ -d $module_tree/lib/modules ]] || fail "missing module tree: $module_tree"
+[[ -d $npu_bundle ]] || fail "missing release NPU bundle: $npu_bundle"
 [[ -f $release_dir/KERNEL_RELEASE ]] || fail "missing release/KERNEL_RELEASE"
 [[ -f $project_dir/external/qbootctl/meson.build ]] || \
 	fail "missing qbootctl source; run scripts/checkout-dependencies.sh"
@@ -132,7 +134,7 @@ SYSTEMD_OFFLINE=1 chroot "$rootfs" /usr/bin/env -i \
 	HOME=/root LANG=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
 	/usr/bin/dnf5 -y install --setopt=install_weak_deps=False \
 	dnsmasq e2fsprogs hostapd iio-sensor-proxy openssh-server \
-	libqmi libqrtr-glib protobuf-c \
+	libbsd libqmi libqrtr-glib libyaml protobuf-c \
 	libcamera libcamera-ipa libcamera-tools libcamera-qcam \
 	libcamera-gstreamer plasma-camera \
 	"${camera_build_packages[@]}"
@@ -240,6 +242,16 @@ cc -O2 -Wall -Wextra -Werror \
 	"$project_dir/tools/caihong-nvram-mac.c" -lcrypto
 file "$rootfs/usr/local/libexec/caihong-nvram-mac" | grep -q 'ARM aarch64' || \
 	fail "Caihong hardware-address reader is not AArch64"
+
+echo "building Caihong NPU capability probe"
+cc -O2 -Wall -Wextra -Werror \
+	-o "$rootfs/usr/local/sbin/caihong-npu-info" \
+	"$project_dir/tools/caihong-npu-info.c" -ldl
+file "$rootfs/usr/local/sbin/caihong-npu-info" | grep -q 'ARM aarch64' || \
+	fail "Caihong NPU capability probe is not AArch64"
+
+echo "installing the Caihong NPU self-test runtime"
+"$project_dir/scripts/install-caihong-npu.sh" "$npu_bundle" "$rootfs" lib64
 
 echo "building qbootctl"
 qbootctl_build="$work_dir/qbootctl-build"

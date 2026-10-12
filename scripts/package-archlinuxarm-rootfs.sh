@@ -12,6 +12,7 @@ mirror=${ARCHLINUXARM_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm}
 mirror=${mirror%/}
 package_cache=${PACKAGE_CACHE:-"$project_dir/build/pacman-cache"}
 ssc_bundle=${SSC_BUNDLE:-"$project_dir/firmware-assets/caihong-ssc"}
+npu_bundle=${NPU_BUNDLE:-"$project_dir/firmware-assets/caihong-npu"}
 output_format=${OUTPUT_FORMAT:-ext4}
 image_size_gib=${IMAGE_SIZE_GIB:-}
 image_min_free_mib=${IMAGE_MIN_FREE_MIB:-2048}
@@ -62,6 +63,11 @@ if [[ ! -d $ssc_bundle ]]; then
 	exit 1
 fi
 ssc_bundle=$(cd -- "$ssc_bundle" && pwd)
+if [[ ! -d $npu_bundle ]]; then
+	echo "missing release NPU bundle: $npu_bundle" >&2
+	exit 1
+fi
+npu_bundle=$(cd -- "$npu_bundle" && pwd)
 
 # This is intentionally a native AArch64 development environment.  base-devel
 # provides GCC, binutils, make, pkgconf and the normal Arch package build tools;
@@ -75,6 +81,8 @@ packages=(
 	cpio
 	dtc
 	libelf
+	libbsd
+	libyaml
 	ncurses
 	openssl
 	pahole
@@ -549,6 +557,18 @@ install -D -m 0644 "$project_dir/tools/caihong-nvram-mac.c" \
 	-o /usr/local/libexec/caihong-nvram-mac \
 	/tmp/caihong-nvram-mac.c -lcrypto
 rm -f -- "$rootfs/tmp/caihong-nvram-mac.c"
+
+echo "building the Caihong NPU capability probe"
+install -D -m 0644 "$project_dir/tools/caihong-npu-info.c" \
+	"$rootfs/tmp/caihong-npu-info.c"
+"$chroot_tool" "$rootfs" "${chroot_env[@]}" \
+	gcc -O2 -Wall -Wextra -Werror \
+	-o /usr/local/sbin/caihong-npu-info \
+	/tmp/caihong-npu-info.c -ldl
+rm -f -- "$rootfs/tmp/caihong-npu-info.c"
+
+echo "installing the Caihong NPU self-test runtime"
+"$project_dir/scripts/install-caihong-npu.sh" "$npu_bundle" "$rootfs" lib
 
 echo "building and installing qbootctl"
 if [[ ! -f $project_dir/external/qbootctl/meson.build ]]; then
