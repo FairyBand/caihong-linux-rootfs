@@ -15,7 +15,8 @@ fi
 bundle=$(cd -- "$bundle" && pwd)
 target=$(cd -- "$target" && pwd)
 
-for file in VERSION bin/hexagonrpcd lib/libhexagonrpc.so.0.5 \
+for file in VERSION bin/hexagonrpcd bin/iio-sensor-proxy \
+	lib/libhexagonrpc.so.0.5 lib/libssc.so.2 \
 	root/sensors/sns_reg.conf; do
 	if [ ! -f "$bundle/$file" ]; then
 		echo "incomplete SSC bundle: missing $file" >&2
@@ -35,8 +36,12 @@ fi
 
 install -D -m 0755 "$bundle/bin/hexagonrpcd" \
 	"$target/usr/local/libexec/caihong-ssc/hexagonrpcd"
+install -D -m 0755 "$bundle/bin/iio-sensor-proxy" \
+	"$target/usr/local/libexec/caihong-ssc/iio-sensor-proxy"
 install -D -m 0755 "$bundle/lib/libhexagonrpc.so.0.5" \
 	"$target/usr/local/lib/caihong-ssc/libhexagonrpc.so.0.5"
+install -D -m 0755 "$bundle/lib/libssc.so.2" \
+	"$target/usr/local/lib/caihong-ssc/libssc.so.2"
 install -D -m 0644 "$script_dir/caihong-ssc.service" \
 	"$target/usr/lib/systemd/system/caihong-ssc.service"
 install -D -m 0644 "$script_dir/90-caihong-ssc.rules" \

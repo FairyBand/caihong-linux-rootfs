@@ -12,7 +12,7 @@ if [ -z "$target" ] || [ ! -d "$target" ]; then
 fi
 target=$(cd -- "$target" && pwd)
 
-required_paths='etc/NetworkManager/conf.d/20-caihong-hardware-mac.conf
+required_paths='etc/NetworkManager/conf.d/99-caihong-hardware-mac.conf
 etc/NetworkManager/conf.d/30-caihong-hotspot.conf
 etc/bluetooth/main.conf
 etc/locale.conf
@@ -82,7 +82,9 @@ usr/share/libcamera/ipa/simple/sc820cs.yaml
 usr/share/alsa/ucm2/Qualcomm/sm8650/Caihong/HiFi.conf
 usr/share/alsa/ucm2/conf.d/sm8650/SM8650-MTP.conf
 usr/local/libexec/caihong-ssc/hexagonrpcd
+usr/local/libexec/caihong-ssc/iio-sensor-proxy
 usr/local/lib/caihong-ssc/libhexagonrpc.so.0.5
+usr/local/lib/caihong-ssc/libssc.so.2
 usr/lib/systemd/system/caihong-ssc.service
 usr/lib/systemd/system/iio-sensor-proxy.service.d/caihong-ssc.conf
 usr/lib/udev/rules.d/90-caihong-ssc.rules
@@ -119,6 +121,8 @@ else
 	done
 	for module in oneplus_pogo nt36532e_ts sc8547_cp caihong_pen_power \
 		bnep rfcomm hidp veth bridge br_netfilter nft_compat xt_CHECKSUM \
+		zram zstd fuse cpufreq_conservative snd-seq hid-steam hid-nintendo \
+		hid-playstation hid-sony \
 		xt_MASQUERADE system_heap cma_heap sc820cs sc1320cs gt9772 ath12k_wifi7 \
 		qcom_q6v5_pas; do
 		module_file=$(find "$module_dir" -type f -name "$module.ko" -print -quit)

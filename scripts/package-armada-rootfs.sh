@@ -114,6 +114,7 @@ SYSTEMD_OFFLINE=1 chroot "$rootfs" /usr/bin/env -i \
 	HOME=/root LANG=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
 	/usr/bin/dnf5 -y install --setopt=install_weak_deps=False \
 	dnsmasq e2fsprogs hostapd iio-sensor-proxy openssh-server \
+	libqmi libqrtr-glib protobuf-c \
 	libcamera libcamera-ipa libcamera-tools libcamera-qcam \
 	libcamera-gstreamer plasma-camera
 SYSTEMD_OFFLINE=1 chroot "$rootfs" /usr/bin/env -i \
@@ -237,6 +238,7 @@ enable_unit()
 for unit in NetworkManager.service bluetooth.service \
 	caihong-grow-rootfs.service caihong-fix-kwin-brightness.service \
 	caihong-clean-pogo-kde.service caihong-bluetooth-autostart.service \
+	caihong-bluetooth-late-autostart.timer \
 	caihong-hardware-mac.service caihong-mark-boot-successful.service \
 	caihong-ssc.service caihong-pen-autoconnect.timer \
 	caihong-pen-charge.timer caihong-pen-pair.timer; do

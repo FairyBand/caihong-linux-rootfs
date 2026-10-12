@@ -65,19 +65,37 @@ required_paths=(
 	usr/share/libcamera/ipa/simple/sc1320cs.yaml
 	usr/share/libcamera/ipa/simple/sc820cs.yaml
 	usr/local/libexec/caihong-ssc/hexagonrpcd
+	usr/local/libexec/caihong-ssc/iio-sensor-proxy
+	usr/local/lib/caihong-ssc/libhexagonrpc.so.0.5
+	usr/local/lib/caihong-ssc/libssc.so.2
+	usr/lib/systemd/system/iio-sensor-proxy.service.d/caihong-ssc.conf
 	usr/lib/firmware/ath12k/WCN7850/hw2.0/board-2.bin
 	usr/lib/firmware/awinic/caihong-aw88261-acf.bin
 	usr/lib/firmware/novatek/DT-novatek-nt36532.bin
 	usr/lib/firmware/qcom/sm8650/SM8650-MTP-tplg.bin
+	etc/modules-load.d/armada-handheld.conf
 	etc/systemd/system/multi-user.target.wants/caihong-hardware-mac.service
 	etc/systemd/system/multi-user.target.wants/caihong-mark-boot-successful.service
 	etc/systemd/system/multi-user.target.wants/caihong-ssc.service
+	etc/systemd/system/timers.target.wants/caihong-bluetooth-late-autostart.timer
 	etc/systemd/system/timers.target.wants/caihong-pen-autoconnect.timer
 	etc/systemd/system/timers.target.wants/caihong-pen-charge.timer
 	etc/systemd/system/timers.target.wants/caihong-pen-pair.timer
+	etc/systemd/system/armada-update-reserve.service
+	etc/systemd/system/armada-controller-type.service
+	etc/systemd/system/bootc-generic-growpart.service
 )
 for path in "${required_paths[@]}"; do
 	require_path "$path"
+done
+
+for unit in armada-controller-type.service armada-update-reserve.service \
+	bootc-generic-growpart.service; do
+	mask="$target/etc/systemd/system/$unit"
+	if [[ ! -L $mask || $(readlink "$mask") != /dev/null ]]; then
+		echo "direct-root Armada service is not masked: $unit" >&2
+		failed=1
+	fi
 done
 
 if ! find "$target/usr" "$target/var" -xdev \
@@ -102,6 +120,8 @@ else
 	done
 	for module in oneplus_pogo nt36532e_ts sc8547_cp caihong_pen_power \
 		bnep rfcomm hidp veth bridge br_netfilter nft_compat xt_CHECKSUM \
+		zram zstd fuse cpufreq_conservative snd-seq hid-steam hid-nintendo \
+		hid-playstation hid-sony \
 		xt_MASQUERADE system_heap cma_heap sc820cs sc1320cs gt9772 \
 		ath12k_wifi7 qcom_q6v5_pas; do
 		module_file=$(find "$module_dir" -type f -name "$module.ko" -print -quit)
