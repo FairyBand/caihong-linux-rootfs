@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
-/* Experimental Conv2d graph; keep out of default rootfs until device
- * validation. */
+/* Quantized Conv2d graph used to validate real HTP execution. */
 
 #include <dlfcn.h>
 #include <inttypes.h>
@@ -15,11 +14,21 @@
 #include "QnnInterface.h"
 #include "QnnOpDef.h"
 
-#define HEIGHT 8U
-#define WIDTH 8U
+#ifndef HEIGHT
+#define HEIGHT 32U
+#endif
+#ifndef WIDTH
+#define WIDTH 32U
+#endif
+#ifndef IN_CHANNELS
 #define IN_CHANNELS 32U
-#define OUT_CHANNELS 64U
+#endif
+#ifndef OUT_CHANNELS
+#define OUT_CHANNELS 128U
+#endif
+#ifndef KERNEL
 #define KERNEL 3U
+#endif
 #define OUT_HEIGHT (HEIGHT - KERNEL + 1U)
 #define OUT_WIDTH (WIDTH - KERNEL + 1U)
 #define INPUT_SIZE (HEIGHT * WIDTH * IN_CHANNELS)
@@ -136,7 +145,7 @@ int main(int argc, char **argv) {
   }
   if (qnn->logCreate &&
       report_error("QnnLog_create",
-                   qnn->logCreate(qnn_log, QNN_LOG_LEVEL_INFO, &logger)))
+                   qnn->logCreate(qnn_log, QNN_LOG_LEVEL_WARN, &logger)))
     goto done;
   if (report_error("QnnBackend_create",
                    qnn->backendCreate(logger, NULL, &backend)))
@@ -162,17 +171,25 @@ int main(int argc, char **argv) {
   }
   for (i = 0; i < INPUT_SIZE; i++)
     input_a[i] =
-        (uint8_t)(((i * 0x9e3779b1U ^ (i >> 4) * 0x85ebca6bU) >> 31) & 1U);
+        (uint8_t)(128U +
+                  (((i * 0x9e3779b1U ^ (i >> 4) * 0x85ebca6bU) >> 31) &
+                   1U));
   for (i = 0; i < WEIGHT_SIZE; i++)
     input_b[i] =
-        (uint8_t)((((i + 17U) * 0x85ebca6bU ^ (i >> 3) * 0xc2b2ae35U) >> 31) &
-                  1U);
+        (uint8_t)(128U +
+                  ((((i + 17U) * 0x85ebca6bU ^
+                     (i >> 3) * 0xc2b2ae35U) >>
+                    31) &
+                   1U));
 
   init_tensor(&tensors[0], "input", QNN_TENSOR_TYPE_APP_WRITE, input_dims);
+  tensors[0].v1.quantizeParams.scaleOffsetEncoding.offset = -128;
   init_tensor(&tensors[1], "weights", QNN_TENSOR_TYPE_STATIC, weight_dims);
+  tensors[1].v1.quantizeParams.scaleOffsetEncoding.offset = -128;
   tensors[1].v1.clientBuf.data = input_b;
   tensors[1].v1.clientBuf.dataSize = WEIGHT_SIZE;
   init_tensor(&tensors[2], "output", QNN_TENSOR_TYPE_APP_READ, output_dims);
+  tensors[2].v1.quantizeParams.scaleOffsetEncoding.offset = -128;
   init_tensor(&tensors[3], "stride", QNN_TENSOR_TYPE_STATIC, vector_dims);
   init_tensor(&tensors[4], "dilation", QNN_TENSOR_TYPE_STATIC, vector_dims);
   init_tensor(&tensors[5], "padding", QNN_TENSOR_TYPE_STATIC, pad_dims);
@@ -236,11 +253,14 @@ int main(int argc, char **argv) {
           for (kx = 0; kx < KERNEL; kx++)
             for (inner = 0; inner < IN_CHANNELS; inner++)
               expected +=
-                  input_a[((y + ky) * WIDTH + x + kx) * IN_CHANNELS + inner] *
-                  input_b[((ky * KERNEL + kx) * IN_CHANNELS + inner) *
-                              OUT_CHANNELS +
-                          channel];
+                  (input_a[((y + ky) * WIDTH + x + kx) * IN_CHANNELS + inner] -
+                   128U) *
+                  (input_b[((ky * KERNEL + kx) * IN_CHANNELS + inner) *
+                               OUT_CHANNELS +
+                           channel] -
+                   128U);
         i = (y * OUT_WIDTH + x) * OUT_CHANNELS + channel;
+        expected += 128U;
         error =
             output[i] > expected ? output[i] - expected : expected - output[i];
         if (error > max_error)

@@ -49,6 +49,7 @@ etc/systemd/system/timers.target.wants/caihong-pen-pair.timer
 usr/local/libexec/caihong-nvram-mac
 usr/local/sbin/caihong-npu-info
 usr/local/libexec/caihong-npu-htp-self-test
+usr/local/libexec/caihong-npu-htp-conv-test
 usr/lib/libcdsprpc.so.1
 usr/lib/caihong-npu/libcalculator.so
 usr/lib/caihong-npu/qnn/libQnnHtp.so

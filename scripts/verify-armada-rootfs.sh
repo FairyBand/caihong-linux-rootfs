@@ -61,6 +61,7 @@ required_paths=(
 	usr/local/libexec/caihong-nvram-mac
 	usr/local/sbin/caihong-npu-info
 	usr/local/libexec/caihong-npu-htp-self-test
+	usr/local/libexec/caihong-npu-htp-conv-test
 	usr/lib64/libcdsprpc.so.1
 	usr/lib64/caihong-npu/libcalculator.so
 	usr/lib64/caihong-npu/qnn/libQnnHtp.so

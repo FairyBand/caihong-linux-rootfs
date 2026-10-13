@@ -24,6 +24,7 @@ for input in \
 	lib/libcdsprpc.so.1.0.0 \
 	lib/libcalculator.so \
 	qnn/bin/caihong-npu-htp-self-test \
+	qnn/bin/caihong-npu-htp-conv-test \
 	qnn/lib/libQnnHtp.so \
 	qnn/lib/libQnnHtpPrepare.so \
 	qnn/lib/libQnnHtpV75Stub.so \
@@ -43,6 +44,8 @@ file "$bundle/lib/libcalculator.so" |
 	grep -q 'ELF 64-bit.*ARM aarch64' || fail "calculator stub is not AArch64"
 file "$bundle/qnn/bin/caihong-npu-htp-self-test" |
 	grep -q 'ELF 64-bit.*ARM aarch64' || fail "HTP self-test is not AArch64"
+file "$bundle/qnn/bin/caihong-npu-htp-conv-test" |
+	grep -q 'ELF 64-bit.*ARM aarch64' || fail "HTP Conv2d self-test is not AArch64"
 for input in libQnnHtp.so libQnnHtpPrepare.so libQnnHtpV75Stub.so; do
 	file "$bundle/qnn/lib/$input" |
 		grep -q 'ELF 64-bit.*ARM aarch64' || fail "$input is not AArch64"
@@ -64,6 +67,8 @@ install -D -m 0755 "$bundle/lib/libcalculator.so" \
 	"$rootfs/usr/$libdir/caihong-npu/libcalculator.so"
 install -D -m 0755 "$bundle/qnn/bin/caihong-npu-htp-self-test" \
 	"$rootfs/usr/local/libexec/caihong-npu-htp-self-test"
+install -D -m 0755 "$bundle/qnn/bin/caihong-npu-htp-conv-test" \
+	"$rootfs/usr/local/libexec/caihong-npu-htp-conv-test"
 for input in libQnnHtp.so libQnnHtpPrepare.so libQnnHtpV75Stub.so; do
 	install -D -m 0755 "$bundle/qnn/lib/$input" \
 		"$rootfs/usr/$libdir/caihong-npu/qnn/$input"

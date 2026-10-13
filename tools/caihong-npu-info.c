@@ -281,10 +281,13 @@ static int run_self_test(void)
 	return 0;
 }
 
-static int run_htp_self_test(void)
+static int run_htp_self_test(bool convolution)
 {
-	static const char *const helpers[] = {
+	static const char *const add_helpers[] = {
 		"/usr/local/libexec/caihong-npu-htp-self-test",
+	};
+	static const char *const conv_helpers[] = {
+		"/usr/local/libexec/caihong-npu-htp-conv-test",
 	};
 	static const char *const backends[] = {
 		"/usr/lib/caihong-npu/qnn/libQnnHtp.so",
@@ -293,8 +296,11 @@ static int run_htp_self_test(void)
 	static const char *const dsp_paths[] = {
 		"/usr/share/caihong-npu/dsp/v75",
 	};
-	const char *helper = first_executable(helpers,
-					      sizeof(helpers) / sizeof(helpers[0]));
+	const char *helper = convolution ?
+		first_executable(conv_helpers,
+				 sizeof(conv_helpers) / sizeof(conv_helpers[0])) :
+		first_executable(add_helpers,
+				 sizeof(add_helpers) / sizeof(add_helpers[0]));
 	const char *backend = first_readable(backends,
 					     sizeof(backends) / sizeof(backends[0]));
 	const char *dsp_path = first_readable(dsp_paths,
@@ -327,7 +333,10 @@ static int run_htp_self_test(void)
 	    prepend_dsp_path(dsp_path))
 		return 1;
 
-	printf("HTP self-test: QAIRT/QNN ElementWiseAdd, 1024 float32 values\n");
+	if (convolution)
+		printf("HTP Conv2d self-test: QAIRT/QNN quantized 32x32x32 -> 30x30x128\n");
+	else
+		printf("HTP self-test: QAIRT/QNN ElementWiseAdd, 1024 float32 values\n");
 	fflush(stdout);
 	execl(helper, helper, backend, (char *)NULL);
 	fprintf(stderr, "cannot execute %s: %s\n", helper, strerror(errno));
@@ -336,10 +345,12 @@ static int run_htp_self_test(void)
 
 static void usage(const char *program)
 {
-	printf("usage: %s [--self-test | --htp-self-test]\n", program);
+	printf("usage: %s [--self-test | --htp-self-test | --htp-conv-self-test]\n",
+	       program);
 	printf("  no arguments  show CDSP firmware state and FastRPC capabilities\n");
 	printf("  --self-test   execute and verify the v75 DSP calculator test\n");
 	printf("  --htp-self-test  execute and verify a QAIRT/QNN graph on HTP\n");
+	printf("  --htp-conv-self-test  execute and verify quantized Conv2d on HTP\n");
 }
 
 int main(int argc, char **argv)
@@ -355,7 +366,9 @@ int main(int argc, char **argv)
 	if (argc == 2 && !strcmp(argv[1], "--self-test"))
 		return run_self_test();
 	if (argc == 2 && !strcmp(argv[1], "--htp-self-test"))
-		return run_htp_self_test();
+		return run_htp_self_test(false);
+	if (argc == 2 && !strcmp(argv[1], "--htp-conv-self-test"))
+		return run_htp_self_test(true);
 	if (argc == 2 && (!strcmp(argv[1], "--help") ||
 			  !strcmp(argv[1], "-h"))) {
 		usage(argv[0]);

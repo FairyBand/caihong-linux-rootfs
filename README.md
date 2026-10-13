@@ -226,7 +226,7 @@ Commands that change hardware or boot state require root privileges.
 | `caihong-flashlight` | Control the rear torch: `sudo caihong-flashlight on 40`, `status`, or `off`. |
 | `caihong-hotspot` | Run the concurrent Wi-Fi AP without disconnecting the STA: `sudo caihong-hotspot start`; also provides `status`, `stop`, and `regulatory {show\|set CODE\|reset}`. Configure it in `/etc/caihong-hotspot.conf`. |
 | `caihong-hardware-mac` | Reads the factory WLAN and Bluetooth addresses from the redundant device NVRAM and applies them during boot. |
-| `caihong-npu-info` | `sudo caihong-npu-info` reports CDSP firmware state and FastRPC capabilities. `--self-test` verifies generic v75 DSP execution; `--htp-self-test` builds and executes a checked QAIRT/QNN graph on the HTP backend. |
+| `caihong-npu-info` | `sudo caihong-npu-info` reports CDSP firmware state and FastRPC capabilities. `--self-test` verifies generic v75 DSP execution; `--htp-self-test` verifies a float QAIRT/QNN graph; `--htp-conv-self-test` verifies quantized Conv2d against a CPU reference. |
 | `caihong-bluetooth-autostart` | Powers on the configured Bluetooth controller during boot. |
 | `caihong-pen-pair` | Pairs a pen address obtained from a validated CPS8601 magnetic-attach event. Normally run by its systemd timer. |
 | `caihong-pen-charge` | Performs a bounded CPS8601 charging/attach observation. Normally run by its systemd timer. |
