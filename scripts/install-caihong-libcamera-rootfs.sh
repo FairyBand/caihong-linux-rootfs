@@ -133,6 +133,7 @@ for path in "${required_outputs[@]}"; do
 done
 
 echo "installing Caihong libcamera into rootfs"
+rsync -aHAX --numeric-ids --chown=0:0 "$install_stage/" "$rootfs/"
 obsolete_outputs=(
 	usr/lib/libcamera/ipa/ipa_soft_simple.so
 	usr/lib/libcamera/ipa/ipa_soft_simple.so.sign
@@ -145,7 +146,6 @@ obsolete_outputs=(
 for path in "${obsolete_outputs[@]}"; do
 	rm -f -- "$rootfs/$path"
 done
-rsync -aHAX --numeric-ids --chown=0:0 "$install_stage/" "$rootfs/"
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" ldconfig
 
 install -d -m 0755 "$rootfs/usr/share/caihong"
