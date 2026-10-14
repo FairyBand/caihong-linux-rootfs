@@ -51,9 +51,6 @@ required_paths=(
 	usr/lib64/libcamera-base.so.0.7.2
 	usr/lib64/libcamera.so.0.7
 	usr/lib64/libcamera.so.0.7.2
-	usr/lib64/libcamera/ipa/ipa_soft_simple.so
-	usr/lib64/libcamera/ipa/ipa_soft_simple.so.sign
-	usr/libexec/libcamera/soft_ipa_proxy
 	usr/share/caihong/libcamera-build-info
 	usr/share/caihong/plasma-camera-build-info
 	etc/issue.d/20-caihong-armada.issue
@@ -87,8 +84,6 @@ required_paths=(
 	usr/lib/linux-caihong/boot-userdata.img
 	usr/lib/linux-caihong/kernel-release
 	usr/share/alsa/ucm2/Qualcomm/sm8650/Caihong/HiFi.conf
-	usr/share/libcamera/ipa/simple/sc1320cs.yaml
-	usr/share/libcamera/ipa/simple/sc820cs.yaml
 	usr/local/libexec/caihong-ssc/hexagonrpcd
 	usr/local/libexec/caihong-ssc/iio-sensor-proxy
 	usr/local/lib/caihong-ssc/libhexagonrpc.so.0.5
@@ -115,6 +110,22 @@ for path in "${required_paths[@]}"; do
 	require_path "$path"
 done
 
+obsolete_camera_paths=(
+	usr/lib/libcamera/ipa/ipa_soft_simple.so
+	usr/lib/libcamera/ipa/ipa_soft_simple.so.sign
+	usr/lib64/libcamera/ipa/ipa_soft_simple.so
+	usr/lib64/libcamera/ipa/ipa_soft_simple.so.sign
+	usr/libexec/libcamera/soft_ipa_proxy
+	usr/share/libcamera/ipa/simple/sc1320cs.yaml
+	usr/share/libcamera/ipa/simple/sc820cs.yaml
+)
+for path in "${obsolete_camera_paths[@]}"; do
+	if [[ -e $target/$path || -L $target/$path ]]; then
+		echo "obsolete software ISP path remains in Armada rootfs: /$path" >&2
+		failed=1
+	fi
+done
+
 libcamera_commit=$(git -C "$project_dir/external/libcamera" rev-parse --verify HEAD)
 plasma_camera_commit=$(git -C "$project_dir/external/plasma-camera" rev-parse --verify HEAD)
 grep -qx "source_commit=$libcamera_commit" \
@@ -127,6 +138,18 @@ grep -qx 'libdir=lib64' \
 	echo "Armada libcamera was not installed in /usr/lib64" >&2
 	failed=1
 }
+for setting in pipelines=simple ipas=none \
+	isp_backend=qcom-camera-icp-bps isp_output=tp10 \
+	isp_statistics=unavailable sensor_controls=fixed \
+	software_isp=disabled software_isp_fallback=disabled \
+	softisp_gpu=disabled ae_controls=unavailable \
+	awb_controls=unavailable autofocus=manual-position; do
+	grep -qx "$setting" \
+		"$target/usr/share/caihong/libcamera-build-info" 2>/dev/null || {
+		echo "missing Armada libcamera hardware ISP setting: $setting" >&2
+		failed=1
+	}
+done
 grep -qx "source_commit=$plasma_camera_commit" \
 	"$target/usr/share/caihong/plasma-camera-build-info" 2>/dev/null || {
 	echo "Armada Plasma Camera source commit does not match the workspace" >&2

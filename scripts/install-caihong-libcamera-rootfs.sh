@@ -31,9 +31,7 @@ case "$libdir" in
 esac
 
 source_tree="$project_dir/external/libcamera"
-if [[ ! -f $source_tree/meson.build || \
-	! -f $source_tree/src/ipa/simple/data/sc1320cs.yaml || \
-	! -f $source_tree/src/ipa/simple/data/sc820cs.yaml ]]; then
+if [[ ! -f $source_tree/meson.build ]]; then
 	echo "incomplete Caihong libcamera source tree: $source_tree" >&2
 	exit 1
 fi
@@ -101,12 +99,12 @@ echo "configuring Caihong libcamera"
 	-Dcam=enabled \
 	-Ddocumentation=disabled \
 	-Dgstreamer=enabled \
-	-Dipas=simple \
+	-Dipas= \
 	-Dlc-compliance=disabled \
 	-Dpipelines=simple \
 	-Dpycamera=disabled \
 	-Dqcam=enabled \
-	-Dsoftisp-gpu=enabled \
+	-Dsoftisp-gpu=disabled \
 	-Dtest=false \
 	-Dtracing=disabled \
 	-Dv4l2=disabled
@@ -126,11 +124,6 @@ required_outputs=(
 	"usr/$libdir/libcamera-base.so.0.7.2"
 	"usr/$libdir/libcamera.so.0.7"
 	"usr/$libdir/libcamera.so.0.7.2"
-	"usr/$libdir/libcamera/ipa/ipa_soft_simple.so"
-	"usr/$libdir/libcamera/ipa/ipa_soft_simple.so.sign"
-	usr/libexec/libcamera/soft_ipa_proxy
-	usr/share/libcamera/ipa/simple/sc1320cs.yaml
-	usr/share/libcamera/ipa/simple/sc820cs.yaml
 )
 for path in "${required_outputs[@]}"; do
 	if [[ ! -e $install_stage/$path ]]; then
@@ -140,6 +133,18 @@ for path in "${required_outputs[@]}"; do
 done
 
 echo "installing Caihong libcamera into rootfs"
+obsolete_outputs=(
+	usr/lib/libcamera/ipa/ipa_soft_simple.so
+	usr/lib/libcamera/ipa/ipa_soft_simple.so.sign
+	usr/lib64/libcamera/ipa/ipa_soft_simple.so
+	usr/lib64/libcamera/ipa/ipa_soft_simple.so.sign
+	usr/libexec/libcamera/soft_ipa_proxy
+	usr/share/libcamera/ipa/simple/sc1320cs.yaml
+	usr/share/libcamera/ipa/simple/sc820cs.yaml
+)
+for path in "${obsolete_outputs[@]}"; do
+	rm -f -- "$rootfs/$path"
+done
 rsync -aHAX --numeric-ids --chown=0:0 "$install_stage/" "$rootfs/"
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" ldconfig
 
@@ -150,27 +155,20 @@ version=0.7.2+caihong
 source_commit=$source_commit
 libdir=$libdir
 pipelines=simple
-ipas=simple
-softisp_gpu=enabled
-lens_shading=dynamic
-lens_shading_calibration=nvmem-per-device
-awb_calibration=nvmem-per-device
-auto_contrast=dynamic
-ae_controls=full
-awb_controls=full
-autofocus=contrast-detect
-noise_reduction=dynamic
-sharpness=dynamic
+ipas=none
+isp_backend=qcom-camera-icp-bps
+isp_output=tp10
+isp_statistics=unavailable
+sensor_controls=fixed
+software_isp=disabled
+software_isp_fallback=disabled
+softisp_gpu=disabled
+ae_controls=unavailable
+awb_controls=unavailable
+autofocus=manual-position
 camera_flash=dual-v4l2
 camera_flash_sync=frame-start-request-queue
 camera_flash_torch_stop=led-mode
-sensor_control_sync=raw-sof-timestamp
-software_isp_startup_controls=enabled
-frame_duration_limits=vblank-dynamic
-ae_convergence=bounded-ratio
-default_max_frame_duration_us=100000
-digital_gain_max=1.0
-gstreamer_camera_controls=flash-nr-cct
 gstreamer=enabled
 qcam=enabled
 build_jobs=$jobs

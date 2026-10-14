@@ -88,13 +88,8 @@ usr/lib/gstreamer-1.0/libgstlibcamera.so
 usr/lib/libcamera-base.so.0.7.2
 usr/lib/libcamera.so.0.7
 usr/lib/libcamera.so.0.7.2
-usr/lib/libcamera/ipa/ipa_soft_simple.so
-usr/lib/libcamera/ipa/ipa_soft_simple.so.sign
-usr/libexec/libcamera/soft_ipa_proxy
 usr/share/caihong/libcamera-build-info
 usr/share/caihong/plasma-camera-build-info
-usr/share/libcamera/ipa/simple/sc1320cs.yaml
-usr/share/libcamera/ipa/simple/sc820cs.yaml
 usr/share/alsa/ucm2/Qualcomm/sm8650/Caihong/HiFi.conf
 usr/share/alsa/ucm2/conf.d/sm8650/SM8650-MTP.conf
 usr/local/libexec/caihong-ssc/hexagonrpcd
@@ -184,6 +179,20 @@ for path in $required_paths; do
 	fi
 done
 
+obsolete_camera_paths='usr/lib/libcamera/ipa/ipa_soft_simple.so
+usr/lib/libcamera/ipa/ipa_soft_simple.so.sign
+usr/lib64/libcamera/ipa/ipa_soft_simple.so
+usr/lib64/libcamera/ipa/ipa_soft_simple.so.sign
+usr/libexec/libcamera/soft_ipa_proxy
+usr/share/libcamera/ipa/simple/sc1320cs.yaml
+usr/share/libcamera/ipa/simple/sc820cs.yaml'
+for path in $obsolete_camera_paths; do
+	if [ -e "$target/$path" ] || [ -L "$target/$path" ]; then
+		echo "obsolete software ISP path remains in rootfs: /$path" >&2
+		failed=1
+	fi
+done
+
 package_db=$(find "$target/var/lib/pacman/local" -mindepth 1 -maxdepth 1 \
 	-type d -name 'linux-caihong-*' -print -quit 2>/dev/null || true)
 if [ -z "$package_db" ] || ! grep -qx 'linux-caihong' "$package_db/desc"; then
@@ -257,23 +266,15 @@ if ! grep -aFq "$wifi_version" "$wifi_amss" 2>/dev/null; then
 	failed=1
 fi
 
-for setting in build=caihong pipelines=simple ipas=simple \
-	softisp_gpu=enabled lens_shading=dynamic \
-	lens_shading_calibration=nvmem-per-device \
-	awb_calibration=nvmem-per-device auto_contrast=dynamic \
-	ae_controls=full awb_controls=full \
-	autofocus=contrast-detect \
-	noise_reduction=dynamic sharpness=dynamic \
+for setting in build=caihong pipelines=simple ipas=none \
+	isp_backend=qcom-camera-icp-bps isp_output=tp10 \
+	isp_statistics=unavailable sensor_controls=fixed \
+	software_isp=disabled software_isp_fallback=disabled \
+	softisp_gpu=disabled ae_controls=unavailable \
+	awb_controls=unavailable autofocus=manual-position \
 	camera_flash=dual-v4l2 \
 	camera_flash_sync=frame-start-request-queue \
 	camera_flash_torch_stop=led-mode \
-	sensor_control_sync=raw-sof-timestamp \
-	software_isp_startup_controls=enabled \
-	frame_duration_limits=vblank-dynamic \
-	ae_convergence=bounded-ratio \
-	default_max_frame_duration_us=100000 \
-	digital_gain_max=1.0 \
-	gstreamer_camera_controls=flash-nr-cct \
 	gstreamer=enabled qcam=enabled; do
 	if ! grep -qx "$setting" \
 		"$target/usr/share/caihong/libcamera-build-info" 2>/dev/null; then
@@ -304,26 +305,6 @@ if ! awk '
 	echo "rootfs does not protect the Caihong libcamera build from package upgrades" >&2
 	failed=1
 fi
-for sensor in sc1320cs sc820cs; do
-	tuning="$target/usr/share/libcamera/ipa/simple/$sensor.yaml"
-	case "$sensor" in
-		sc1320cs) nvmem=sc1320cs-eeprom ;;
-		sc820cs) nvmem=sc820cs-otp ;;
-	esac
-	if ! grep -q 'contrast: 1.1' "$tuning" 2>/dev/null || \
-		! grep -q 'autoContrast:' "$tuning" 2>/dev/null || \
-		! grep -q 'ct: 6500' "$tuning" 2>/dev/null || \
-		! grep -q -- '- LensShading:' "$tuning" 2>/dev/null || \
-		! grep -q 'calibration:' "$tuning" 2>/dev/null || \
-		! grep -q 'records:' "$tuning" 2>/dev/null || \
-		! grep -q "nvmem: $nvmem" "$tuning" 2>/dev/null || \
-		! grep -q 'flip-x: true' "$tuning" 2>/dev/null || \
-		! grep -q 'exposure-ms:' "$tuning" 2>/dev/null; then
-		echo "incomplete Caihong camera tuning: $tuning" >&2
-		failed=1
-	fi
-done
-
 if [ -e \
 	"$target/usr/lib/qt6/plugins/powerdevil/action/powerdevil_keyboardbrightnesscontrolaction.so" ]; then
 	echo "rootfs still contains the unsupported PowerDevil keyboard-backlight action" >&2

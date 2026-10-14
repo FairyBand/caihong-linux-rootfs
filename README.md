@@ -15,7 +15,7 @@ development release for this device; review the status table before installing.
 | Pogo keyboard | Mostly working | The Android-oriented top row is remapped to F1–F12, with Search acting as Fn. The keyboard and touchpad work; a key press can briefly pause the touchpad. |
 | Wi-Fi | Mostly working | Client mode, factory MAC address and concurrent STA/AP mode work. Resume can be slow; the current BDF is a compatible vendor entry rather than a Caihong-specific calibration. |
 | Bluetooth | Working | Scanning, pairing, BLE, HID and pen battery reporting work. |
-| Cameras and flash | Mostly working | Front and rear cameras, autofocus, software ISP, calibration, torch and synchronized single flash work. The vendor hardware ISP and complete vendor tuning are unavailable. |
+| Cameras and flash | Mostly working | Front and rear full-resolution capture runs through the SM8650 Camera ICP/BPS hardware ISP. ISP statistics are not exposed yet, so AE/AWB remain unavailable and sensor controls stay fixed; application-format integration is still in progress. |
 | Sensors and hall switch | Working | Accelerometer, gyroscope, ambient light, automatic brightness and cover hall switch work. |
 | Audio | Working | Microphones and stereo speakers work. Speaker volume is lower than stock Android; Dolby and the complete stock tuning are not included. |
 | USB and external display | Working | USB host/device controllers and DP Alt Mode work. |
@@ -280,8 +280,8 @@ with `caihong-armada-` and its rootfs filename starts with
 ## Licensing
 
 Project-authored build scripts and utilities are licensed under GPL-2.0-only
-unless a file states another SPDX license. Camera tuning data keeps its stated
-CC0 license. Bundled device firmware remains subject to its vendor terms.
+unless a file states another SPDX license. Bundled device firmware remains
+subject to its vendor terms.
 Armada's project code is GPL-2.0-or-later, while its bundled components retain
 their own terms. The Steam Client included by upstream Armada is proprietary
 software subject to Valve's applicable Steam agreement and distribution terms.
