@@ -143,14 +143,16 @@ grep -qx 'libdir=lib64' \
 }
 for setting in pipelines=simple ipas=none \
 	isp_backend=qcom-camera-icp-bps isp_output=nv12m \
-	isp_statistics=output-luma-sampling \
+	isp_statistics=output-luma-chroma-sampling \
 	sensor_controls=closed-loop-exposure-gain \
 	software_isp=disabled software_isp_linkage=omitted \
 	software_isp_fallback=disabled \
 	softisp_gpu=disabled ae_controls=unavailable \
 	auto_exposure=output-luma-closed-loop \
-	awb_controls=unavailable white_balance=fixed-sensor-profile \
-	auto_white_balance=unavailable autofocus=manual-position; do
+	awb_controls=v4l2-red-blue-balance-q10 \
+	white_balance=sensor-profile-plus-adaptive \
+	auto_white_balance=output-chroma-closed-loop \
+	autofocus=manual-position; do
 	grep -qx "$setting" \
 		"$target/usr/share/caihong/libcamera-build-info" 2>/dev/null || {
 		echo "missing Armada libcamera hardware ISP setting: $setting" >&2
