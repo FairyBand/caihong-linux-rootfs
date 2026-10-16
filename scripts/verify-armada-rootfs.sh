@@ -139,7 +139,7 @@ grep -qx 'libdir=lib64' \
 	failed=1
 }
 for setting in pipelines=simple ipas=none \
-	isp_backend=qcom-camera-icp-bps isp_output=tp10 \
+	isp_backend=qcom-camera-icp-bps isp_output=nv12m \
 	isp_statistics=unavailable sensor_controls=fixed \
 	software_isp=disabled software_isp_fallback=disabled \
 	softisp_gpu=disabled ae_controls=unavailable \

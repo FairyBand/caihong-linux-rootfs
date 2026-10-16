@@ -267,7 +267,7 @@ if ! grep -aFq "$wifi_version" "$wifi_amss" 2>/dev/null; then
 fi
 
 for setting in build=caihong pipelines=simple ipas=none \
-	isp_backend=qcom-camera-icp-bps isp_output=tp10 \
+	isp_backend=qcom-camera-icp-bps isp_output=nv12m \
 	isp_statistics=unavailable sensor_controls=fixed \
 	software_isp=disabled software_isp_fallback=disabled \
 	softisp_gpu=disabled ae_controls=unavailable \
