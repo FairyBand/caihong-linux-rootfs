@@ -7,6 +7,11 @@ are not covered by this repository's GPL-2.0-only license. The AudioReach
 topology is regenerated from `external/audioreach-topology` during the rootfs
 build.
 
+The `bps-striping-bggr10-nv12-*` tables were generated for the validated
+camera modes with the matching stock Qualcomm BPS striping library. They are
+runtime inputs for the mainline Camera ICP/BPS driver and remain subject to
+the vendor firmware terms.
+
 `SHA256SUMS` records every binary release input. The build verifies this file
 before embedding early GPU firmware or copying the runtime firmware tree.
 

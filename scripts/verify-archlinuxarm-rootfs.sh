@@ -109,7 +109,10 @@ usr/lib/firmware/ath12k/WCN7850/hw2.0/caihong/regdb.bin
 usr/lib/firmware/awinic/caihong-aw88261-acf.bin
 usr/lib/firmware/awinic/caihong-aw88261-speaker-cal.bin
 usr/lib/firmware/novatek/DT-novatek-nt36532.bin
-usr/lib/firmware/qcom/sm8650/SM8650-MTP-tplg.bin'
+usr/lib/firmware/qcom/sm8650/SM8650-MTP-tplg.bin
+usr/lib/firmware/qcom/sm8650/bps-striping-bggr10-nv12-3264x2448.bin
+usr/lib/firmware/qcom/sm8650/bps-striping-bggr10-nv12-4208x3120.bin
+usr/lib/firmware/qcom/sm8650/bps-striping-bggr10-nv12-640x480.bin'
 
 failed=0
 
