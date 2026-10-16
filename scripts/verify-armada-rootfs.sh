@@ -141,7 +141,8 @@ grep -qx 'libdir=lib64' \
 for setting in pipelines=simple ipas=none \
 	isp_backend=qcom-camera-icp-bps isp_output=nv12m \
 	isp_statistics=unavailable sensor_controls=fixed \
-	software_isp=disabled software_isp_fallback=disabled \
+	software_isp=disabled software_isp_linkage=omitted \
+	software_isp_fallback=disabled \
 	softisp_gpu=disabled ae_controls=unavailable \
 	awb_controls=unavailable autofocus=manual-position; do
 	grep -qx "$setting" \

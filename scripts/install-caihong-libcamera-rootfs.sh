@@ -161,6 +161,7 @@ isp_output=nv12m
 isp_statistics=unavailable
 sensor_controls=fixed
 software_isp=disabled
+software_isp_linkage=omitted
 software_isp_fallback=disabled
 softisp_gpu=disabled
 ae_controls=unavailable
