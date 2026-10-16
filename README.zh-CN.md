@@ -33,6 +33,9 @@ root=PARTLABEL=linux rootfstype=ext4 rootwait rw
 | 电池与快充 | 基本正常 | 电量显示以及已测试的 PPS/VOOC 快充可用；其他充电协议暂未适配。 |
 | 存储 | 正常 | 存储功能可用，MCQ 队列与完整频率表尚未配置。 |
 
+硬件 ISP 迁移结果、验证方法和剩余限制见
+[CAMERA_HARDWARE_ISP.md](CAMERA_HARDWARE_ISP.md)。
+
 ## 发布文件
 
 - `caihong-boot-linux-<kernel-release>.img`：双系统镜像，根分区使用

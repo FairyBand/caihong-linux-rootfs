@@ -23,6 +23,9 @@ development release for this device; review the status table before installing.
 | Battery and fast charging | Mostly working | Battery reporting and tested PPS/VOOC charging work. Other charging protocols are not yet supported. |
 | Storage | Working | Storage works; MCQ queues and the complete frequency table are not yet configured. |
 
+See [CAMERA_HARDWARE_ISP.md](CAMERA_HARDWARE_ISP.md) for the completed
+hardware-ISP migration, validation procedure and remaining camera limitations.
+
 ## Release contents
 
 - `caihong-boot-linux-<kernel-release>.img`: dual-boot image using the `linux`

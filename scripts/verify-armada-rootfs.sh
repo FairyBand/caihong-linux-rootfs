@@ -144,6 +144,9 @@ grep -qx 'libdir=lib64' \
 for setting in pipelines=simple ipas=none \
 	isp_backend=qcom-camera-icp-bps isp_output=nv12m \
 	isp_statistics=output-luma-chroma-sampling \
+	isp_pipeline=raw10-demosaic-white-balance-ccm-gamma-nv12m \
+	color_correction=sensor-profile-ccm gamma=12-bit-bps-dmi-lut \
+	module_abi=qcom-camera-icp-bps-matched-build \
 	isp_validation=front-3264x2448-rear-4208x3120 \
 	validated_camera_sensors=sc820cs,sc1320cs \
 	sensor_controls=closed-loop-exposure-gain \
