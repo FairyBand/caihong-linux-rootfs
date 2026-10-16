@@ -25,7 +25,7 @@ root=PARTLABEL=linux rootfstype=ext4 rootwait rw
 | Pogo 键盘 | 基本正常 | 面向 Android 的顶部按键已重新映射为 F1–F12，搜索键作为 Fn；键盘和触控板可用，按键时触控板可能短暂停顿。 |
 | Wi-Fi | 基本正常 | 联网、硬件 MAC 和 STA/AP 并发可用；休眠恢复偶尔偏慢，BDF 目前使用兼容的厂商条目而非 Caihong 专属校准。 |
 | 蓝牙 | 正常 | 扫描、配对、BLE、HID 和手写笔电量可用。 |
-| 摄像头与闪光灯 | 基本正常 | 前后摄全分辨率 NV12 采集已切换到 SM8650 Camera ICP/BPS 硬件 ISP，并已接入 libcamera 与 GStreamer。软件 ISP 及其回退路径均已移除。自动曝光现通过抽样硬件输出亮度闭环调节传感器曝光/增益；硬件 ISP 统计与 AWB 尚未开放。 |
+| 摄像头与闪光灯 | 基本正常 | 前后摄全分辨率 NV12 采集已切换到 SM8650 Camera ICP/BPS 硬件 ISP，并已接入 libcamera 与 GStreamer。软件 ISP 及其回退路径均已移除。自动曝光通过抽样硬件输出亮度闭环调节传感器曝光/增益，BPS 色彩变换同时应用按传感器区分的固定白平衡；硬件 ISP 统计与场景自适应 AWB 尚未开放。 |
 | 传感器与霍尔开关 | 正常 | 加速度计、陀螺仪、环境光、自动亮度和保护套霍尔开关可用。 |
 | 音频 | 正常 | 麦克风和立体声扬声器可用；音量低于原厂 Android，未包含 Dolby 和完整原厂调音。 |
 | USB 与外接显示 | 正常 | USB host/device 控制器和 DP Alt Mode 可用。 |

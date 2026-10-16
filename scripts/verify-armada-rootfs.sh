@@ -149,7 +149,8 @@ for setting in pipelines=simple ipas=none \
 	software_isp_fallback=disabled \
 	softisp_gpu=disabled ae_controls=unavailable \
 	auto_exposure=output-luma-closed-loop \
-	awb_controls=unavailable autofocus=manual-position; do
+	awb_controls=unavailable white_balance=fixed-sensor-profile \
+	auto_white_balance=unavailable autofocus=manual-position; do
 	grep -qx "$setting" \
 		"$target/usr/share/caihong/libcamera-build-info" 2>/dev/null || {
 		echo "missing Armada libcamera hardware ISP setting: $setting" >&2

@@ -277,7 +277,8 @@ for setting in build=caihong pipelines=simple ipas=none \
 	software_isp_fallback=disabled \
 	softisp_gpu=disabled ae_controls=unavailable \
 	auto_exposure=output-luma-closed-loop \
-	awb_controls=unavailable autofocus=manual-position \
+	awb_controls=unavailable white_balance=fixed-sensor-profile \
+	auto_white_balance=unavailable autofocus=manual-position \
 	camera_flash=dual-v4l2 \
 	camera_flash_sync=frame-start-request-queue \
 	camera_flash_torch_stop=led-mode \
