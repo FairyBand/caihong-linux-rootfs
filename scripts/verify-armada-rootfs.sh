@@ -144,6 +144,8 @@ grep -qx 'libdir=lib64' \
 for setting in pipelines=simple ipas=none \
 	isp_backend=qcom-camera-icp-bps isp_output=nv12m \
 	isp_statistics=output-luma-chroma-sampling \
+	isp_validation=front-3264x2448-rear-4208x3120 \
+	validated_camera_sensors=sc820cs,sc1320cs \
 	sensor_controls=closed-loop-exposure-gain \
 	software_isp=disabled software_isp_linkage=omitted \
 	software_isp_fallback=disabled \
@@ -198,7 +200,8 @@ else
 		bnep rfcomm hidp veth bridge br_netfilter nft_compat xt_CHECKSUM \
 		zram zstd fuse cpufreq_conservative snd-seq hid-steam hid-nintendo \
 		hid-playstation hid-sony \
-		xt_MASQUERADE system_heap cma_heap sc820cs sc1320cs gt9772 \
+		xt_MASQUERADE system_heap cma_heap qcom_camera_icp \
+		qcom-camera-icp-bps sc820cs sc1320cs gt9772 \
 		ath12k_wifi7 qcom_q6v5_pas; do
 		module_file=$(find "$module_dir" -type f -name "$module.ko" -print -quit)
 		if [[ -z $module_file ]]; then
