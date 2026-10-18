@@ -7,15 +7,6 @@ CDPATH=
 project_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
 # shellcheck source=dependencies.env
 . "$project_dir/dependencies.env"
-dependency_scope=${DEPENDENCY_SCOPE:-release}
-
-case "$dependency_scope" in
-	release|kernel) ;;
-	*)
-		echo "DEPENDENCY_SCOPE must be release or kernel" >&2
-		exit 2
-		;;
-esac
 
 checkout()
 {
@@ -58,15 +49,7 @@ mkdir -p "$project_dir/build"
 resolved="$project_dir/build/dependencies.resolved.env"
 : > "$resolved"
 checkout LINUX "$LINUX_REF" "$project_dir/linux" "$LINUX_REPOSITORY"
-if [ "$dependency_scope" = release ]; then
-	checkout LIBCAMERA "$LIBCAMERA_REF" \
-		"$project_dir/external/libcamera" "$LIBCAMERA_REPOSITORY"
-	checkout PLASMA_CAMERA "$PLASMA_CAMERA_REF" \
-		"$project_dir/external/plasma-camera" "$PLASMA_CAMERA_REPOSITORY"
-	checkout QBOOTCTL "$QBOOTCTL_REF" \
-		"$project_dir/external/qbootctl" "$QBOOTCTL_REPOSITORY"
-fi
 checkout MKBOOTIMG "$MKBOOTIMG_REF" \
 	"$project_dir/external/mkbootimg" "$MKBOOTIMG_REPOSITORY"
-echo "checked out Caihong $dependency_scope dependencies"
+echo "checked out Caihong kernel build dependencies"
 cat "$resolved"

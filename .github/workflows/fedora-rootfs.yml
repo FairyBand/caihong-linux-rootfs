@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: GPL-2.0-only
+name: Build Fedora Caihong rootfs
+
+on:
+  workflow_dispatch:
+    inputs:
+      selinux_mode:
+        description: SELinux mode for the first boot
+        required: true
+        type: choice
+        options:
+          - permissive
+          - enforcing
+        default: permissive
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caihong-fedora-rootfs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  fedora-rootfs:
+    # Fedora's source root and the target image are both AArch64.  Build on
+    # GitHub's native ARM64 runner so the chroot uses native execution; the
+    # local x86_64 path remains supported through qemu-aarch64-static.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            alsa-utils android-sdk-libsparse-utils bc bison build-essential \
+            ccache curl dwarves e2fsprogs file flex git kmod \
+            m4 libarchive-tools libelf-dev libssl-dev qemu-user-static rpm \
+            meson ninja-build python3 rsync shellcheck zstd
+
+      - name: Confirm native ARM64 runner
+        run: |
+          test "$(uname -m)" = aarch64
+          test "${{ runner.arch }}" = ARM64
+
+      - name: Resolve Caihong dependencies
+        run: scripts/checkout-dependencies.sh
+
+      - name: Build SELinux-enabled kernel and boot images natively
+        run: |
+          jobs=$(nproc)
+          JOBS=$jobs FORCE=1 \
+            KERNEL_CC="ccache gcc" KERNEL_HOSTCC="ccache gcc" \
+            scripts/build-kernel-release.sh
+
+      - name: Build Fedora Workstation rootfs from Copr and overlay
+        run: |
+          # package-fedora-rootfs.sh performs the validated build sequence:
+          # copy the Fedora raw Btrfs content source, overlay the local device
+          # integration, download every device/camera RPM from Copr, skip only
+          # source RPMs, install caihong-ssc without its malformed %prein, and
+          # rebuild the final Android direct-root image as ext4.
+          test "$(cat release/KERNEL_RELEASE)" != ""
+          sudo -E env FORCE=1 SELINUX_MODE="${{ inputs.selinux_mode }}" \
+            MODULE_TREE="$PWD/modules-current" RELEASE_DIR="$PWD/release" \
+            COPR_REPO=fairyband/caihong scripts/package-fedora-rootfs.sh
+          sudo chown -R "$USER:$USER" release
+
+      - name: Verify dual-boot flash artifacts
+        run: |
+          set -euo pipefail
+          kernel_release=$(cat release/KERNEL_RELEASE)
+          rootfs="release/caihong-fedora-rootfs-${kernel_release}.ext4.sparse.img"
+          boot="release/caihong-boot-linux-${kernel_release}.img"
+          test -f "$rootfs" -a -f "$boot"
+          file "$rootfs" "$boot"
+          sha256sum "$rootfs" "$boot" \
+            "release/caihong-boot-userdata-${kernel_release}.img" \
+            > release/SHA256SUMS.fedora
+          cat release/SHA256SUMS.fedora
+
+      - name: Upload Fedora rootfs artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: caihong-fedora-${{ github.run_id }}
+          path: |
+            release/caihong-fedora-rootfs-*.ext4.sparse.img
+            release/caihong-boot-*.img
+            release/caihong-boot-*.img.json
+            release/SHA256SUMS.boot
+            release/SHA256SUMS.fedora
+            release/config-*
+            release/KERNEL_RELEASE
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

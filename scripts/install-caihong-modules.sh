@@ -44,7 +44,7 @@ fi
 # resolved by the host modprobe. Built-in roots produce no .ko and are safe to
 # keep here, which prevents another configuration change from silently
 # dropping battery or WLAN support from a packaged rootfs.
-roots="qcom_q6v5_pas qrtr_smd qrtr_mhi qcom_pd_mapper fastrpc hci_uart bnep rfcomm hidp hid_multitouch hid_steam hid_nintendo hid_playstation hid_sony veth bridge br_netfilter nft_compat xt_CHECKSUM xt_MASQUERADE zram zstd fuse cpufreq_conservative ramoops socinfo qcom_battmgr pwrseq_qcom_wcn pci_pwrctrl_pwrseq ath12k_wifi7 system_heap cma_heap camcc_sm8650 i2c_qcom_cci v4l2_cci qcom_camss leds_qcom_flash pinctrl_sm8650_lpass_lpi soundwire_qcom snd_seq snd_q6apm q6prm q6prm_clocks q6apm_dai q6apm_lpass_dais snd_soc_lpass_va_macro snd_soc_lpass_wsa_macro snd_soc_lpass_rx_macro snd_soc_lpass_tx_macro snd_soc_wcd939x_sdw snd_soc_wcd939x snd_soc_aw88261 snd_soc_sc8280xp oneplus_pogo nt36532e_ts sc8547_cp caihong_pen_power sc820cs sc1320cs gt9772"
+roots="qcom_q6v5_pas qrtr_smd qrtr_mhi qcom_pd_mapper fastrpc hci_uart bnep rfcomm hidp hid_multitouch hid_steam hid_nintendo hid_playstation hid_sony veth bridge br_netfilter nft_compat xt_CHECKSUM xt_MASQUERADE zram zstd fuse cpufreq_conservative ramoops socinfo qcom_battmgr pwrseq_qcom_wcn pci_pwrctrl_pwrseq ath12k_wifi7 system_heap cma_heap camcc_sm8650 videocc_sm8550 i2c_qcom_cci v4l2_cci qcom_camss qcom_iris leds_qcom_flash pinctrl_sm8650_lpass_lpi soundwire_qcom snd_seq snd_q6apm q6prm q6prm_clocks q6apm_dai q6apm_lpass_dais snd_soc_lpass_va_macro snd_soc_lpass_wsa_macro snd_soc_lpass_rx_macro snd_soc_lpass_tx_macro snd_soc_wcd939x_sdw snd_soc_wcd939x snd_soc_aw88261 snd_soc_sc8280xp oneplus_pogo nt36532e_ts sc8547_cp caihong_pen_power sc820cs sc1320cs gt9772"
 
 list=$(mktemp)
 depends=$(mktemp)
@@ -56,7 +56,10 @@ for module in $roots; do
 		echo "module built in: $module"
 		continue
 	fi
-	if ! modprobe -d "$module_root" -S "$release" \
+	# Do not inherit the build host's modprobe.d.  Distribution snippets can
+	# replace a module with an install command, which hides real dependencies
+	# from --show-depends (for example Fedora's snd-pcm rule).
+	if ! modprobe -C /dev/null -d "$module_root" -S "$release" \
 		--show-depends "$module" > "$depends"; then
 		echo "failed to resolve module: $module" >&2
 		exit 1
@@ -98,7 +101,7 @@ awk -v prefix="$module_root/lib/modules/$release/" \
 
 depmod -b "$target" "$release"
 
-modules_load_conf="$project_dir/rootfs/archlinuxarm/etc/modules-load.d/caihong.conf"
+modules_load_conf="$project_dir/rootfs/caihong/etc/modules-load.d/caihong.conf"
 if [ -f "$modules_load_conf" ]; then
 	install -D -m 0644 "$modules_load_conf" \
 		"$target/etc/modules-load.d/caihong.conf"

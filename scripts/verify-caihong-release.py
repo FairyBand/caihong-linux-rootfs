@@ -24,6 +24,18 @@ REQUIRED_CONFIGS = (
     "CONFIG_SCSI_UFS_QCOM=y",
     "CONFIG_PHY_QCOM_QMP_UFS=y",
     "CONFIG_EXT4_FS=y",
+    "CONFIG_SECURITY_NETWORK=y",
+    "CONFIG_SECURITY_PATH=y",
+    "CONFIG_SECURITY_SELINUX=y",
+    "CONFIG_SECURITY_SELINUX_BOOTPARAM=y",
+    "CONFIG_SECURITY_SELINUX_DEVELOP=y",
+    "CONFIG_DEFAULT_SECURITY_SELINUX=y",
+    "CONFIG_SECURITYFS=y",
+    "CONFIG_AUDIT=y",
+    "CONFIG_NET=y",
+    "CONFIG_INET=y",
+    "CONFIG_NETWORK_SECMARK=y",
+    'CONFIG_LSM="landlock,lockdown,yama,integrity,selinux,bpf,ipe"',
     'CONFIG_INITRAMFS_SOURCE=""',
 )
 REQUIRED_MODULES = (
@@ -39,6 +51,19 @@ REQUIRED_MODULES = (
     "rfcomm",
     "hidp",
     "qcom_q6v5_pas",
+    # The audio graph cannot probe without the PCM core and its QDSP/codec
+    # closure. Keep these in the release contract so a host modprobe rule
+    # cannot silently produce a soundless image.
+    "snd-pcm",
+    "snd-pcm-dmaengine",
+    "snd-soc-core",
+    "snd-q6apm",
+    "q6prm",
+    "q6apm-dai",
+    "q6apm-lpass-dais",
+    "snd-soc-wcd939x-sdw",
+    "snd-soc-aw88261",
+    "snd-soc-sc8280xp",
 )
 EARLY_FIRMWARE = (
     "qcom/gen70900_sqe.fw",
