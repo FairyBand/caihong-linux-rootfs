@@ -1,4 +1,4 @@
-# Caihong Fedora
+# Caihong Linux Rootfs
 
 English | [简体中文](README.zh-CN.md)
 
@@ -247,6 +247,44 @@ and successful flags are not changed.
 sudo dnf install ./caihong-kernel-payload-<version>.aarch64.rpm
 sudo caihong-kernel-install
 ```
+
+## OBS hardware encoding
+
+`obs-studio-plugin-v4l2m2m` adds Iris hardware encoders to OBS Studio. Images
+built by this branch already include it. On an existing system, install it
+with:
+
+```sh
+sudo dnf install obs-studio obs-studio-plugin-v4l2m2m
+```
+
+The encoders only appear in the **Advanced** output mode. OBS's Simple mode
+uses a fixed encoder list that plugins cannot extend, so it offers only
+software encoding.
+
+1. Open **Settings > Output** and set **Output Mode** to **Advanced**.
+2. On the **Streaming** and **Recording** tabs, set **Video Encoder** to
+   **V4L2 M2M H.264 (Hardware)** or **V4L2 M2M HEVC (Hardware)**.
+3. Set the bitrate, keyframe interval and, for H.264, the profile in the same
+   tab.
+4. In **Settings > Advanced > Video**, keep an 8-bit color format (NV12 is the
+   default) and the Rec. 709 or Rec. 601 color space. The encoders reject
+   10-bit formats and HDR color spaces.
+
+When OBS starts, its log should contain
+`[obs-v4l2m2m] video1 (Iris Encoder) can encode H264`. If an encoder is
+missing from the list, check that `qcom_iris` is loaded and that
+`/dev/video*` has a node named `qcom-iris-encoder`.
+
+On the device, 1080p30 MKV recording and RTMP streaming were tested with both
+codecs, and every packet decoded cleanly. Known limits:
+
+- A 2 s keyframe interval produces a keyframe every 61 frames because of an
+  Iris driver off-by-one (see TODO.md).
+- The bitrate control mode (CBR or VBR) cannot be selected.
+- Hardware decoding in OBS media sources has not been tested. `ffmpeg-free`
+  has no software H.264/HEVC decoder, so H.264 decoding goes through Iris
+  (`h264_v4l2m2m`).
 
 ## Board utilities
 

@@ -1,4 +1,4 @@
-# 彩虹 Fedora
+# Caihong Linux Rootfs
 
 [English](README.md) | 简体中文
 
@@ -223,6 +223,37 @@ RPM 事务本身不写块设备，也不修改 A/B 的 active、bootable 和 suc
 sudo dnf install ./caihong-kernel-payload-<version>.aarch64.rpm
 sudo caihong-kernel-install
 ```
+
+## OBS 硬件编码
+
+`obs-studio-plugin-v4l2m2m` 为 OBS Studio 提供 Iris 硬件编码器。本分支构建的镜像已经
+包含它；已有系统上可以这样安装：
+
+```sh
+sudo dnf install obs-studio obs-studio-plugin-v4l2m2m
+```
+
+这些编码器只在**高级**输出模式中出现。OBS 的简单模式使用固定的编码器列表，插件无法
+扩展，因此只提供软件编码。
+
+1. 打开 **设置 > 输出**，把 **输出模式** 设为 **高级**。
+2. 在 **直播** 和 **录制** 选项卡中，把 **视频编码器** 设为
+   **V4L2 M2M H.264（硬件）** 或 **V4L2 M2M HEVC（硬件）**。
+3. 在同一选项卡中设置码率、关键帧间隔，H.264 还可以选择配置（Profile）。
+4. 在 **设置 > 高级 > 视频** 中保持 8 位 **色彩格式**（默认 NV12），**色彩空间**
+   选 Rec. 709 或 Rec. 601。编码器不接受 10 位格式和 HDR 色彩空间。
+
+OBS 启动后，日志中应出现 `[obs-v4l2m2m] video1 (Iris Encoder) can encode H264`。
+如果列表里没有这些编码器，检查 `qcom_iris` 是否已加载，以及 `/dev/video*` 中是否有
+名为 `qcom-iris-encoder` 的节点。
+
+已在设备上用两种编码测试 1080p30 MKV 录像和 RTMP 推流，所有数据包都能正常解码。
+已知限制：
+
+- 由于 Iris 驱动的差一问题，2 秒关键帧间隔实际是每 61 帧一个关键帧（见 TODO.md）。
+- 无法选择码率控制模式（CBR 或 VBR）。
+- OBS 媒体源的硬件解码尚未测试。`ffmpeg-free` 没有 H.264/HEVC 软件解码器，因此
+  H.264 解码会使用 Iris（`h264_v4l2m2m`）。
 
 ## 板级工具
 
