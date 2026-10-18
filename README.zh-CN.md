@@ -1,145 +1,150 @@
-# 彩虹 Linux rootfs
+# 彩虹 Fedora
 
 [English](README.md) | 简体中文
 
-本仓库为一加平板 Pro（`caihong`）构建 Arch Linux ARM 用户空间、配套的
-mainline Linux 内核和 Android boot 镜像。目前属于该设备的开发版本，安装前请先
-阅读下方设备状态表。
+这个 `fedora` 分支为一加平板 Pro（`caihong`）构建 Fedora Workstation 44（GNOME，
+AArch64）：基于主线的 Caihong 内核、Android boot 镜像，以及 Fedora rootfs。设备适配
+以 RPM 形式由 Copr 项目
+[`fairyband/caihong`](https://copr.fedorainfracloud.org/coprs/fairyband/caihong/)
+提供。
 
-boot 镜像采用 Android boot image v2 格式，仅包含 Linux `Image` 和 Caihong
-设备树，不含 ramdisk。双系统镜像直接挂载 GPT 分区名为 `linux` 的分区：
+本仓库 fork 自
+[Osilvfe/caihong-linux-rootfs](https://github.com/Osilvfe/caihong-linux-rootfs)。
+`main` 分支跟随上游，构建 Arch Linux ARM 和 Armada 镜像；Fedora 分支去掉了这两条
+构建路径，只保留 Fedora 需要的部分。这是开发中的移植，安装前请先阅读
+[TODO.md](TODO.md)。
 
-```text
-root=PARTLABEL=linux rootfstype=ext4 rootwait rw
+## 状态
+
+未解决的问题和已完成的工作记录在 [TODO.md](TODO.md)。目前在 Fedora 上已验证：
+
+- 内置屏幕上的 GNOME 和 Adreno 750 GPU（Mesa/Vulkan；vkmark 需要能被 3 整除的
+  窗口尺寸，见 TODO.md）。
+- Iris 硬件视频编解码：FFmpeg `h264_v4l2m2m`、`hevc_v4l2m2m`，以及通过
+  `obs-studio-plugin-v4l2m2m` 在 OBS Studio 中录制和推流。
+- Wi-Fi、蓝牙、Pogo 键盘、音频、SSC 传感器和内核 A/B 更新器均已打包。前后摄像头
+  采集目前仍是黑帧。
+
+SELinux 默认运行在 `permissive` 模式，服务策略尚未编写，参见
+[docs/fedora44-gnome-migration-research.zh-CN.md](docs/fedora44-gnome-migration-research.zh-CN.md)。
+
+## 仓库结构
+
+| 路径 | 用途 |
+| --- | --- |
+| `scripts/checkout-dependencies.sh`、`dependencies.env` | 按配置的分支获取 Caihong Linux 源码树和 `mkbootimg`。 |
+| `scripts/build-kernel-release.sh` | 应用 `packaging/kernel/caihong-fedora-selinux.config` 构建内核、模块和两种直接根分区 boot 镜像。 |
+| `scripts/package-fedora-rootfs.sh` | 以官方 Workstation raw 镜像和 Copr 软件包构建 Fedora ext4 rootfs。 |
+| `scripts/verify-fedora-rootfs.sh` | 检查构建出的 rootfs：发行版、Copr 包 EVR、SELinux 和内核载荷。 |
+| `scripts/collect-caihong-diagnostics.sh` | 在运行中的设备上收集日志和硬件状态。 |
+| `rootfs/caihong/` | 设备集成覆盖层（udev、systemd 单元、板级工具、UCM2），其中大部分文件由 Copr 包安装。 |
+| `firmware/`、`firmware-assets/` | 设备固件和 SSC 用户空间载荷，附 SHA-256 清单。 |
+| `external/audioreach-topology/` | `firmware/` 中 AudioReach topology 的源码。 |
+| `.github/workflows/fedora-rootfs.yml` | 在原生 ARM64 runner 上构建内核、boot 镜像和 rootfs。 |
+
+RPM spec 位于
+[FairyBand/caihong-fedora-rpms](https://github.com/FairyBand/caihong-fedora-rpms)：
+`caihong-device-support`、`caihong-firmware`、`caihong-audio`、`caihong-ssc`、
+`caihong-qbootctl`、`caihong-kernel-updater`、`caihong-kernel-payload`，以及重建的
+`libcamera`、`plasma-camera`、`ffmpeg` 和 `obs-studio-plugin-v4l2m2m` 插件。
+
+## 构建产物
+
+在 Actions 页面运行 `Build Fedora Caihong rootfs` 工作流，它会上传：
+
+- `caihong-fedora-rootfs-<kernel-release>.ext4.sparse.img`：可直接刷写的 Android
+  sparse ext4 rootfs，卷标为 `linux`。
+- `caihong-boot-linux-<kernel-release>.img`：双系统 `linux` 分区使用的 boot 镜像。
+- `caihong-boot-userdata-<kernel-release>.img`：单系统 `userdata` 使用的 boot 镜像。
+- `SHA256SUMS.fedora`、`SHA256SUMS.boot`、boot 镜像清单和内核
+  `config-<kernel-release>`。
+
+刷写前用 `SHA256SUMS.fedora` 校验每个文件：
+
+```sh
+sha256sum -c SHA256SUMS.fedora
 ```
-
-单系统镜像则挂载 `PARTLABEL=userdata`。所有可加载驱动、固件和设备专用用户空间
-组件都存放在 rootfs 中。
-
-## 设备状态
-
-| 功能 | 状态 | 说明 |
-| --- | --- | --- |
-| 显示、GPU | 基本正常 | 3000×2120 内屏、Adreno GPU、亮度调节；偶尔仍会出现小面积屏幕花屏。 |
-| 触摸与手写笔 | 正常 | 10 点触控、悬停、压感、绘画、休眠恢复、磁吸充电和首次自动配对已验证。 |
-| Pogo 键盘 | 基本正常 | 面向 Android 的顶部按键已重新映射为 F1–F12，搜索键作为 Fn；键盘和触控板可用，按键时触控板可能短暂停顿。 |
-| Wi-Fi | 基本正常 | 联网、硬件 MAC 和 STA/AP 并发可用；休眠恢复偶尔偏慢，BDF 目前使用兼容的厂商条目而非 Caihong 专属校准。 |
-| 蓝牙 | 正常 | 扫描、配对、BLE、HID 和手写笔电量可用。 |
-| 摄像头与闪光灯 | 基本正常 | 前后摄、自动对焦、软件 ISP、模组校准、手电筒和同步单闪可用；没有原厂硬件 ISP 与完整原厂调校。 |
-| 传感器与霍尔开关 | 正常 | 加速度计、陀螺仪、环境光、自动亮度和保护套霍尔开关可用。 |
-| 音频 | 正常 | 麦克风和立体声扬声器可用；音量低于原厂 Android，未包含 Dolby 和完整原厂调音。 |
-| USB 与外接显示 | 正常 | USB host/device 控制器和 DP Alt Mode 可用。 |
-| CPU 与休眠 | 正常 | CPU 调频和休眠恢复可用；默认关闭 3.3024 GHz boost。 |
-| 电池与快充 | 基本正常 | 电量显示以及已测试的 PPS/VOOC 快充可用；其他充电协议暂未适配。 |
-| 存储 | 正常 | 存储功能可用，MCQ 队列与完整频率表尚未配置。 |
-
-## 发布文件
-
-- `caihong-boot-linux-<kernel-release>.img`：双系统镜像，根分区使用
-  `linux`。
-- `caihong-boot-userdata-<kernel-release>.img`：单系统镜像，根分区使用
-  `userdata`。
-- `caihong-rootfs-<kernel-release>.ext4.sparse.img.zst`：经过 zstd 压缩的
-  Android sparse ext4 rootfs 镜像；先压缩完整镜像，再将大于等于 2 GiB 的压缩
-  流拆成按顺序排列的 `.part-00`、`.part-01` 等文件。
-- `linux-caihong-<version>-1-aarch64.pkg.tar.zst`：包含两种 boot 镜像
-  和配套内核模块的 pacman 软件包。
-
-Release 说明会记录每个资产、重组后 zstd 压缩流和解压后可刷写镜像的 SHA-256，
-以及文件系统逻辑大小和实际使用的源码版本。可安装资产不会使用 ZIP 打包。
-
-## 实验性 Armada rootfs
-
-`Build experimental Caihong Armada rootfs` 工作流会生成独立的
-`caihong-armada-rootfs-<kernel-release>.ext4.sparse.img.zst` 产物。该镜像
-只在 GitHub ARM64 runner 上构建，不会替换普通的 `caihong-rootfs-*` 发布镜像。
-
-镜像直接使用上游
-[`ghcr.io/armada-os/armada:stable`](https://github.com/armada-os/armada)
-OCI 镜像，保留 Armada 名称、`armada` 桌面账户、Steam Client、FEX、Proton、
-Gamescope、KDE Plasma 以及其他 Armada 组件，并叠加配套的 Caihong 内核模块、
-固件、音频、传感器、输入映射和设备工具。每个镜像都会在
-`/etc/caihong-rootfs-build-info` 中记录实际解析到的 Armada OCI digest。
-
-该产物是适配现有 Android `linux` 或 `userdata` 分区布局的传统直挂载 ext4
-镜像，目前没有启用 Armada 的 bootc 原子更新流程；更新时需要安装重新构建的
-镜像。默认 Armada 用户名和密码均为 `armada`，首次启动后应立即修改密码。下方
-安装步骤同样适用于 Armada，只需将 `caihong-rootfs-*` 替换为配套的
-`caihong-armada-rootfs-*` 文件。
 
 ## 安装方法
 
-请严格按步骤操作。错误的重新分区或刷写目标会清除 Android 及设备上的其他数据。
+请严格按步骤操作。分区或刷写目标错误可能清除 Android 和其他设备数据。
 
 ### 前置条件
 
-- bootloader 已解锁。
-- 电脑已安装 `adb`、`fastboot` 和 `zstd`。
-- Android 与内部存储中的重要数据已经备份。
-- boot 镜像与 rootfs 镜像来自同一个 Release。
-- 双系统安装需要 GPT 分区名为 `linux` 的分区；如果已经存在，请跳过下面的建分区
-  步骤。
-
-### 准备文件
-
-从 Release 下载一个 boot 镜像和全部 rootfs 镜像分片：
-
-- 双系统使用 `caihong-boot-linux-<kernel-release>.img`。
-- 单系统使用 `caihong-boot-userdata-<kernel-release>.img`。
-- 两种布局共用压缩后的
-  `caihong-rootfs-<kernel-release>.ext4.sparse.img.zst`。
-
-逐一对照 Release 说明中的 SHA-256。rootfs 分片不能单独解压或刷写；按编号顺序
-重组压缩流并校验，然后解压并校验可刷写的 sparse 镜像：
-
-```sh
-sha256sum caihong-boot-*.img caihong-rootfs-*.ext4.sparse.img.zst.part-*
-cat caihong-rootfs-*.ext4.sparse.img.zst.part-* \
-  > caihong-rootfs.ext4.sparse.img.zst
-sha256sum caihong-rootfs.ext4.sparse.img.zst
-zstd -d caihong-rootfs.ext4.sparse.img.zst \
-  -o caihong-rootfs.ext4.sparse.img
-sha256sum caihong-rootfs.ext4.sparse.img
-```
-
-如果 Release 直接提供一个未分片的 `.ext4.sparse.img.zst`，直接使用并跳过 `cat`。
-Release 说明中会同时列出两个完整文件的摘要。
+- Bootloader 已解锁。
+- 电脑上已安装 `adb` 和 `fastboot`。
+- 已备份重要的 Android 数据和内部存储数据。
+- boot 镜像和 rootfs 来自同一次工作流运行。
+- 双系统安装需要一个名为 `linux` 的 GPT 分区，且大于 rootfs 的逻辑大小（目前约
+  10 GiB）。如果已经存在，跳过下面的分区步骤。
 
 ### 双系统安装
 
 #### 1. 创建或核对 Linux 分区
 
-已有 `linux` 分区时跳过本步骤。否则进入能够运行 `parted` 的 recovery；可以使用
-recovery 自带版本，也可以推送兼容的静态二进制：
+`fastboot` 无法缩小 GPT `userdata` 分区并创建 `linux`。已有 `linux` 时跳过本步，
+否则进入能运行 `parted` 或 `sgdisk` 的 recovery：
 
 ```sh
 adb reboot recovery
+```
+
+在 bootloader 中，如果设备支持该目标，可以使用 `fastboot reboot recovery`；否则执行
+`fastboot reboot` 后用 recovery 组合键进入。
+
+在 recovery 中先只运行以下只读命令，不要猜测整盘设备名：
+
+```sh
+adb wait-for-device
+adb shell 'id; getprop ro.bootmode'
+adb shell 'ls -l /dev/block/by-name/userdata /dev/block/by-name/boot_a /dev/block/by-name/boot_b'
+adb shell 'ls -l /dev/block/by-name/dtbo_a /dev/block/by-name/dtbo_b'
+adb shell 'cat /proc/partitions'
+adb shell 'command -v parted; command -v sgdisk; command -v mkfs.f2fs'
+```
+
+根据 `userdata` 链接目标（例如 `/dev/block/sdaXX`）确定所在整盘（例如
+`/dev/block/sda`）。备份 GPT 并打印按扇区的分区布局：
+
+```sh
+adb shell 'sgdisk --backup=/tmp/caihong-gpt.bin /dev/block/sda'
+adb pull /tmp/caihong-gpt.bin ./caihong-gpt-before.bin
+adb shell 'parted /dev/block/sda unit s print'
+```
+
+如果 recovery 没有 `sgdisk`，推送一个静态 `parted`，并在修改前保存 `print` 输出：
+
+```sh
 adb push /path/to/parted /tmp/parted
 adb shell
 chmod +x /tmp/parted
 /tmp/parted /dev/block/sda
 ```
 
-先在 `parted` 中查看真实分区表：
+F2FS 无法缩小，因此要删除并重建 `userdata`：保留原起点，在分割点结束；`linux`
+使用分割点到原 `userdata` 终点的空间。替换所有尖括号中的值：
 
 ```text
-unit GB
+unit s
 print
-```
-
-具体分区编号与边界取决于设备容量和现有布局。必须保持原 `userdata` 起点不变，选择
-能够同时容纳两个系统的分界点，并确保 `linux` 大于 Release 记录的 rootfs 逻辑
-大小。执行下面的破坏性命令前，必须替换所有尖括号内容：
-
-```text
-rm <userdata-分区编号>
-mkpart userdata ext4 <原-userdata-起点> <linux-起点>
-mkpart linux ext4 <linux-起点> 100%
+rm <userdata-number>
+mkpart primary <original-userdata-start> <linux-start>
+name <new-userdata-number> userdata
+mkpart primary <linux-start> <original-userdata-end>
+name <new-linux-number> linux
 print
 quit
 ```
 
-确认新分区名称严格为 `userdata` 和 `linux`，然后返回 bootloader：
+确认 GPT 名称正好是 `userdata` 和 `linux`，然后用设备自带的 `mkfs.f2fs` 重新格式化
+userdata（会删除 Android 用户数据）：
+
+```sh
+mkfs.f2fs -f /dev/block/by-name/userdata
+```
+
+不要格式化 `linux`，fastboot 会把 ext4 sparse rootfs 写入其中。如果
+`/dev/block/by-name` 仍显示旧布局，先重新进入 recovery。然后返回 bootloader：
 
 ```sh
 exit
@@ -148,8 +153,7 @@ adb reboot bootloader
 
 #### 2. 刷写镜像
 
-明确选择 Linux 所在槽位。下面以 B 槽为例；如果为 Linux 保留的是 A 槽，请改为
-`a`：
+明确选择 Linux 槽位，下例使用 B 槽：
 
 ```sh
 fastboot devices
@@ -157,7 +161,7 @@ fastboot getvar current-slot
 
 LINUX_SLOT=b
 BOOT=caihong-boot-linux-<kernel-release>.img
-ROOTFS=caihong-rootfs.ext4.sparse.img
+ROOTFS=caihong-fedora-rootfs-<kernel-release>.ext4.sparse.img
 
 fastboot erase "dtbo_${LINUX_SLOT}"
 fastboot flash "boot_${LINUX_SLOT}" "$BOOT"
@@ -166,21 +170,20 @@ fastboot --set-active="$LINUX_SLOT"
 fastboot reboot
 ```
 
-只擦除所选 Linux 槽对应的 DTBO。Caihong 设备树已经包含在 boot 镜像内；务必保留
-Android 槽的 DTBO。
+只擦除 Linux 槽位的 DTBO。Caihong DTB 已包含在 boot 镜像中，请保留 Android 槽位的
+DTBO。
 
 ### 单系统安装
 
-该方式会覆盖 `userdata` 并删除 Android 用户数据，不需要单独的 `linux` 分区：
+这会覆盖 `userdata` 并删除 Android 用户数据：
 
 ```sh
 adb reboot bootloader
-fastboot devices
 fastboot getvar current-slot
 
 LINUX_SLOT=b
 BOOT=caihong-boot-userdata-<kernel-release>.img
-ROOTFS=caihong-rootfs.ext4.sparse.img
+ROOTFS=caihong-fedora-rootfs-<kernel-release>.ext4.sparse.img
 
 fastboot erase "dtbo_${LINUX_SLOT}"
 fastboot flash "boot_${LINUX_SLOT}" "$BOOT"
@@ -191,85 +194,71 @@ fastboot reboot
 
 ### 首次启动
 
-镜像内的 ext4 文件系统标签为 `linux`。第一次成功启动时，
-`caihong-grow-rootfs.service` 会将文件系统扩展至整个 `linux` 或 `userdata` 分区，
-`caihong-mark-boot-successful.service` 会标记实际运行槽启动成功，不需要手动运行
-`resize2fs`。
+镜像的 `/etc/machine-id` 为空并带有 `.autorelabel` 标记。首次启动会重新标记
+SELinux 上下文并重启，之后由 GNOME 初始设置创建用户账户。
+`caihong-grow-rootfs.service` 把 ext4 文件系统扩展到整个分区，
+`caihong-mark-boot-successful.service` 把当前运行的槽位标记为成功。
 
-## 默认用户和密码
+## 更新
 
-| 用户 | 密码 | 用途 |
-| --- | --- | --- |
-| `alarm` | `alarm` | Plasma 桌面用户；属于 `wheel` 组，可使用自身密码运行 `sudo`。 |
-| `root` | `root` | 系统管理员用户。 |
-
-以 `alarm` 登录后，请立即修改两个账户的密码：
+镜像已启用 `fairyband/caihong` Copr 仓库，常规的 Fedora 更新也会更新设备软件包：
 
 ```sh
-passwd
-sudo passwd root
+sudo dnf upgrade --refresh
 ```
 
-## Caihong 用户空间工具
+Caihong 的 `libcamera` 和 `ffmpeg` 构建使用 `Epoch: 1` 并带有 DNF5 仓库覆盖配置，
+因此不会被 Fedora 官方包替换。
 
-rootfs 在 `/usr/local` 中预装以下设备专用工具。修改硬件或启动状态的命令需要
-root 权限。
+内核更新由两个包完成。`caihong-kernel-payload` 包含某个内核版本的 Image、DTB、
+boot 镜像和模块，它由内核发布归档构建，不在普通 Copr 源码构建中生成。
+`caihong-kernel-updater` 提供 `caihong-kernel-install`，用于启动
+`caihong-kernel-install.service`；该服务也会在开机时运行。它识别根分区卷标
+（`linux` 或 `userdata`），只把对应的 boot 镜像写入当前运行的槽位，并读回校验。
+RPM 事务本身不写块设备，也不修改 A/B 的 active、bootable 和 successful 标志。
 
-| 工具 | 用途与示例 |
+```sh
+sudo dnf install ./caihong-kernel-payload-<version>.aarch64.rpm
+sudo caihong-kernel-install
+```
+
+## 板级工具
+
+以下工具由 `caihong-device-support` 安装在 `/usr/local` 下。修改硬件或启动状态的
+命令需要 root 权限。
+
+| 工具 | 用途和示例 |
 | --- | --- |
-| `caihong-slot` | 查看或切换 A/B 槽：`sudo caihong-slot status`、`sudo caihong-slot android --reboot`。 |
-| `caihong-flashlight` | 控制后置手电筒：`sudo caihong-flashlight on 40`、`status` 或 `off`。 |
-| `caihong-hotspot` | 在保持 STA 连接的同时启动热点：`sudo caihong-hotspot start`；还支持 `status`、`stop` 和 `regulatory {show\|set CODE\|reset}`。配置文件为 `/etc/caihong-hotspot.conf`。 |
-| `caihong-hardware-mac` | 从设备冗余 NVRAM 读取并在启动时应用原厂 WLAN 与蓝牙地址。 |
-| `caihong-bluetooth-autostart` | 启动时打开已经配置地址的蓝牙控制器。 |
-| `caihong-pen-pair` | 使用通过 CPS8601 磁吸事件校验得到的地址配对手写笔，通常由 systemd 定时器调用。 |
-| `caihong-pen-charge` | 执行有时间限制的 CPS8601 充电与吸附观察，通常由 systemd 定时器调用。 |
-| `caihong-pen-autoconnect` | 恢复已配对手写笔连接和触摸屏手写笔扫描模式，通常由 systemd 定时器调用。 |
-| `caihong-mark-boot-successful` | 记录实际启动槽，并只将该槽标记为启动成功；开机时自动运行。 |
-| `caihong-fix-kwin-brightness` | 将参考原厂的环境光曲线写入 `alarm` 用户的 KWin 显示配置。 |
-| `caihong-clean-pogo-kde` | 删除不适用于 Pogo 键盘的 KDE 键盘背光操作。 |
-| `caihong-nvram-mac` | 位于 `/usr/local/libexec` 的内部读取器，由 `caihong-hardware-mac` 调用。 |
-| `caihong-switch-to-android.desktop` | Plasma 应用菜单中的“切换到 Android”入口，通过 polkit 执行 `caihong-slot android --reboot`。 |
-
-rootfs 还包含 Caihong SSC 服务、定制 libcamera、Plasma Camera 集成、设备固件、
-音频拓扑和匹配的内核模块。
-
-## 内核升级
-
-使用 Release 中的 pacman 软件包升级内核、设备树和模块：
-
-```sh
-sudo pacman -U ./linux-caihong-*-aarch64.pkg.tar.zst
-```
-
-软件包会读取本次启动时记录的实际槽位，根据根分区是 `linux` 还是 `userdata`
-选择镜像，只写入当前运行槽并读回校验。它不会修改 A/B 槽的 active、bootable 或
-successful 标记。
+| `caihong-slot` | 查看或切换 A/B 槽位：`sudo caihong-slot status`、`sudo caihong-slot android --reboot`。 |
+| `caihong-flashlight` | 控制后置手电筒：`sudo caihong-flashlight on 40`、`status`、`off`。 |
+| `caihong-hotspot` | 在不断开 STA 的情况下开启并发 Wi-Fi 热点：`sudo caihong-hotspot start`、`status`、`stop`、`regulatory {show\|set CODE\|reset}`。配置文件为 `/etc/caihong-hotspot.conf`。 |
+| `caihong-hardware-mac` | 开机时从 NVRAM 读取并应用出厂 WLAN 和蓝牙地址。 |
+| `caihong-bluetooth-autostart` | 开机时打开蓝牙控制器电源。 |
+| `caihong-pen-pair`、`caihong-pen-charge`、`caihong-pen-autoconnect` | 手写笔配对、充电观测和自动重连，由 systemd 定时器运行。 |
+| `caihong-mark-boot-successful` | 只把实际启动的槽位标记为成功，开机自动运行。 |
+| `caihong-switch-to-android.desktop` | 应用菜单项，通过 polkit 重启到 Android。 |
 
 ## 本地构建
 
-在 AArch64 主机上安装原生 GCC、Python 3、bsdtar、zstd、kmod、alsa-utils、
-e2fsprogs 和 Android sparse 镜像工具（`img2simg`）；其他架构还需要 AArch64
-交叉编译器和 QEMU user-mode。脚本会自动选择原生或交叉工具链：
+在 x86_64 Fedora 主机上安装 `gcc-aarch64-linux-gnu`、`qemu-user-static`、`rpm`、
+`rsync`、`e2fsprogs` 和 `android-tools`（提供 `img2simg`）。AArch64 主机使用原生
+编译器，不需要 QEMU。
 
 ```sh
 scripts/checkout-dependencies.sh
-scripts/build-kernel-release.sh
-sudo -E env CHROOT_TOOL=chroot MODULE_TREE="$PWD/modules-current" \
-  OUTPUT_FORMAT=ext4 SPARSE_IMAGE=1 \
-  scripts/package-archlinuxarm-rootfs.sh \
-  "release/caihong-rootfs-$(cat release/KERNEL_RELEASE).ext4.sparse.img"
+CROSS_COMPILE=aarch64-linux-gnu- scripts/build-kernel-release.sh
+sudo -E env COPR_REPO=fairyband/caihong SELINUX_MODE=permissive \
+  MODULE_TREE="$PWD/modules-current" RELEASE_DIR="$PWD/release" \
+  scripts/package-fedora-rootfs.sh
 ```
 
-GitHub Actions 使用原生 AArch64 构建，并在不同运行之间保存 ccache。每个
-Release 说明都会记录实际使用的各组件提交。
-实验性 Armada 镜像需要在 Actions 页面单独运行
-`Build experimental Caihong Armada rootfs`；artifact 名称以
-`caihong-armada-` 开头，rootfs 文件名以 `caihong-armada-rootfs-` 开头。
+构建脚本会下载固定版本的 Fedora 44 Workstation raw 镜像，仅把它当作内容来源：启用
+Copr，安装 Caihong 设备、固件、音频、SSC、相机和内核更新器 RPM，覆盖
+`rootfs/caihong/`，安装匹配的模块和 boot 载荷，最后为 Android 直接根分区启动路径
+重新生成 `LABEL=linux` 的 ext4 镜像。服务策略就绪后，用 `SELINUX_MODE=enforcing`
+重新构建。在挂载的镜像上运行 `scripts/verify-fedora-rootfs.sh ROOTFS_DIR` 进行检查。
 
 ## 许可证
 
-项目编写的构建脚本和工具采用 GPL-2.0-only，除非文件中另有 SPDX 声明。相机
-调校数据保留其 CC0 声明；随附设备固件仍受厂商条款约束。Armada 项目代码采用
-GPL-2.0-or-later，所包含的各组件保留自身条款；上游 Armada 包含的 Steam Client
-是专有软件，仍受 Valve 适用的 Steam 协议和分发条款约束。
+除文件另行声明 SPDX 许可证外，本项目编写的构建脚本和工具采用 GPL-2.0-only。相机
+调校数据保留其声明的 CC0 许可证。随附的设备固件仍受其厂商条款约束。
