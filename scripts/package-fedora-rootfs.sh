@@ -17,6 +17,14 @@ fedora_image_sha256=${FEDORA_IMAGE_SHA256:-0361c13141e6f57e24d6ee5227066c33a45f7
 module_tree=${MODULE_TREE:-"$project_dir/modules-current"}
 copr_repo=${COPR_REPO:-fairyband/caihong}
 copr_repo_id="copr:copr.fedorainfracloud.org:${copr_repo//\//:}"
+# Every binary package in the Copr is installed.  Development and debug
+# packages are skipped unless COPR_EXCLUDE_REGEX is overridden (set it to a
+# pattern that matches nothing, for example '^$', to install them as well).
+copr_exclude_regex=${COPR_EXCLUDE_REGEX:-'-(devel|debuginfo|debugsource)$'}
+# Repository priority 10 beats Fedora's default 99: a package name present in
+# the Copr is always taken from the Copr, even when Fedora has a newer EVR.
+# caihong-device-support installs the same setting for later dnf runs.
+copr_priority=${COPR_PRIORITY:-10}
 selinux_mode=${SELINUX_MODE:-permissive}
 image_min_free_mib=${IMAGE_MIN_FREE_MIB:-2048}
 image_slack_percent=${IMAGE_SLACK_PERCENT:-25}
@@ -27,6 +35,7 @@ fail() { echo "package-fedora-rootfs: $*" >&2; exit 1; }
 [[ $selinux_mode == permissive || $selinux_mode == enforcing ]] || fail "SELINUX_MODE must be permissive or enforcing"
 [[ $sparse_image == 0 || $sparse_image == 1 ]] || fail "SPARSE_IMAGE must be 0 or 1"
 [[ $force == 0 || $force == 1 ]] || fail "FORCE must be 0 or 1"
+[[ $copr_priority =~ ^[0-9]+$ ]] || fail "COPR_PRIORITY must be a number"
 case "$image_min_free_mib:$image_slack_percent" in *[!0-9:]*|:*|*:) fail "invalid image sizing option" ;; esac
 (( EUID == 0 )) || fail "run this script as root"
 case $(uname -m) in
@@ -207,13 +216,30 @@ if [[ -x $rootfs/usr/sbin/resize2fs ]]; then
 	sed -i 's#/usr/bin/resize2fs#/usr/sbin/resize2fs#' "$rootfs/etc/systemd/system/caihong-grow-rootfs.service"
 fi
 
-# The Fedora Workstation source image already contains Fedora's libcamera
-# packages.  Download all requested packages from Copr explicitly so
-# device-only packages are pulled in and the higher-epoch camera builds replace
-# Fedora's implementation.  rpm --replacefiles is required because the
-# device packages intentionally own a few files also shipped by Fedora.
-camera_packages=(libcamera libcamera-ipa libcamera-tools libcamera-qcam libcamera-gstreamer plasma-camera)
-device_packages=(caihong-audio caihong-device-support caihong-firmware caihong-kernel-updater caihong-qbootctl caihong-ssc)
+# Install every binary package published in the Copr, not a fixed list, so a
+# package added to the Copr reaches the next image without editing this
+# script.  The Fedora Workstation source image already contains Fedora builds
+# of some of these names (libcamera, ffmpeg-free libraries), so the exact Copr
+# builds are installed with rpm: --oldpackage replaces a newer Fedora EVR and
+# --replacefiles is required because the device packages intentionally own a
+# few files also shipped by Fedora (for example /etc/bluetooth/main.conf).
+copr_setopt=(--setopt="$copr_repo_id.priority=$copr_priority")
+copr_list=$work_dir/copr-packages
+chroot "$rootfs" "${chroot_env[@]}" dnf5 repoquery --refresh --quiet "${copr_setopt[@]}" \
+	--repo="$copr_repo_id" --latest-limit=1 --arch=aarch64,noarch \
+	--queryformat='%{name} %{epoch}:%{version}-%{release}\n' > "$copr_list.all"
+awk 'NF == 2' "$copr_list.all" | sort -u > "$copr_list.sorted"
+awk '{ print $1 }' "$copr_list.sorted" | grep -Ev -- "$copr_exclude_regex" > "$copr_list.names" || true
+mapfile -t copr_packages < "$copr_list.names"
+(( ${#copr_packages[@]} > 0 )) || fail "Copr $copr_repo lists no installable packages"
+for package in caihong-device-support caihong-firmware caihong-kernel-updater caihong-ssc libcamera; do
+	grep -qx -- "$package" "$copr_list.names" || fail "Copr $copr_repo does not provide $package"
+done
+package=
+skipped=$(awk '{ print $1 }' "$copr_list.sorted" | grep -E -- "$copr_exclude_regex" | tr '\n' ' ' || true)
+echo "installing ${#copr_packages[@]} Copr packages: ${copr_packages[*]}"
+[[ -z $skipped ]] || echo "skipping Copr packages matching $copr_exclude_regex: $skipped"
+
 rpm_stage=/tmp/caihong-copr-rpms
 copr_key_stage=/tmp/caihong-copr-key.gpg
 curl --fail --location --retry 4 \
@@ -222,43 +248,34 @@ curl --fail --location --retry 4 \
 chroot "$rootfs" "${chroot_env[@]}" rpm --import "$copr_key_stage"
 rm -rf -- "$rootfs$rpm_stage"
 install -d -m 0755 "$rootfs$rpm_stage"
-chroot "$rootfs" "${chroot_env[@]}" dnf5 download --refresh --resolve \
-	--from-repo="$copr_repo_id" --destdir="$rpm_stage" \
-	"${camera_packages[@]}" "${device_packages[@]}"
+chroot "$rootfs" "${chroot_env[@]}" dnf5 download --resolve "${copr_setopt[@]}" \
+	--from-repo="$copr_repo_id" --destdir="$rpm_stage" "${copr_packages[@]}"
 mapfile -t downloaded_rpms < <(find "$rootfs$rpm_stage" -mindepth 1 -maxdepth 1 -type f -name '*.rpm' -printf '%f\n')
 (( ${#downloaded_rpms[@]} > 0 )) || fail "Copr download produced no RPMs"
-rpm_args=(); ssc_rpm=
+rpm_args=()
 for rpm_file in "${downloaded_rpms[@]}"; do
 	# dnf5 download may include source RPMs when resolving a Copr package;
 	# they are not installable rootfs content and must not shadow the binary.
 	[[ $rpm_file == *.src.rpm ]] && continue
-	if [[ $rpm_file == caihong-ssc-*.rpm ]]; then
-		ssc_rpm="$rpm_stage/$rpm_file"
-	else
-		rpm_args+=("$rpm_stage/$rpm_file")
-	fi
+	rpm_args+=("$rpm_stage/$rpm_file")
 done
-if (( ${#rpm_args[@]} > 0 )); then
-	chroot "$rootfs" "${chroot_env[@]}" rpm -U --replacefiles --replacepkgs "${rpm_args[@]}"
-fi
-[[ -n $ssc_rpm ]] || fail "Copr download did not include caihong-ssc"
-# The current caihong-ssc build contains an unexpanded %systemd_pre line in
-# its preinstall scriptlet.  Its files are still valid; skip only that broken
-# scriptlet and let systemd/udev configuration below finish installation.
-chroot "$rootfs" "${chroot_env[@]}" rpm -U --replacefiles --replacepkgs --noscripts "$ssc_rpm"
+chroot "$rootfs" "${chroot_env[@]}" rpm -U --replacefiles --replacepkgs --oldpackage "${rpm_args[@]}"
 rm -rf -- "$rootfs$rpm_stage" "$rootfs$copr_key_stage"
-for package in "${camera_packages[@]}"; do
-	package_evr=$(chroot "$rootfs" rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' "$package")
-	[[ $package_evr == 1:*caihong* ]] ||
-		fail "$package is not the Caihong Copr build (got $package_evr)"
-done
-for package in "${device_packages[@]}"; do
-	package_evr=$(chroot "$rootfs" rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' "$package")
-	[[ $package_evr == *caihong* ]] ||
-		fail "$package is not the Caihong Copr build (got $package_evr)"
-done
-[[ -f "$rootfs/etc/dnf/repos.override.d/99-caihong-libcamera.repo" ]] ||
-	fail "Caihong libcamera package did not install its Fedora repository override"
+
+# Every Copr package must now be installed in exactly the Copr EVR.
+copr_installed=$work_dir/copr-installed
+: > "$copr_installed"
+while read -r package package_evr; do
+	grep -qx -- "$package" "$copr_list.names" || continue
+	installed_evr=$(chroot "$rootfs" rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' "$package" </dev/null) ||
+		fail "Copr package $package is not installed"
+	[[ $installed_evr == "$package_evr" ]] ||
+		fail "$package is $installed_evr, expected the Copr build $package_evr"
+	printf 'copr_package=%s %s\n' "$package" "$package_evr" >> "$copr_installed"
+done < "$copr_list.sorted"
+package=
+[[ -f "$rootfs/etc/dnf/repos.override.d/90-caihong-copr.repo" ]] ||
+	fail "caihong-device-support did not install the Copr priority override"
 chroot "$rootfs" "${chroot_env[@]}" dnf5 clean all
 
 echo "installing matching kernel modules"
@@ -307,6 +324,7 @@ umount --lazy "$rootfs"; rootfs_mounted=0
 
 printf 'device=caihong\narchitecture=aarch64\ndistribution=fedora\nfedora_release=44\n' > "$rootfs/etc/caihong-rootfs-build-info"
 printf 'copr=%s\nselinux_mode=%s\nkernel_release=%s\n' "$copr_repo" "$selinux_mode" "$kernel_release" >> "$rootfs/etc/caihong-rootfs-build-info"
+cat "$copr_installed" >> "$rootfs/etc/caihong-rootfs-build-info"
 chmod 0644 "$rootfs/etc/caihong-rootfs-build-info"
 rm -f -- "$rootfs/etc/machine-id"; : > "$rootfs/etc/machine-id"
 "$project_dir/scripts/verify-fedora-rootfs.sh" "$rootfs"

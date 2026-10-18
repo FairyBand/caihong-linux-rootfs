@@ -40,21 +40,30 @@ if ! grep -RqsE 'fairyband[^[:space:]/:]*[:/]caihong|fairyband/caihong' \
 	echo "Caihong Copr repository is not configured" >&2
 	failed=1
 fi
-camera_packages=(libcamera libcamera-ipa libcamera-tools libcamera-qcam libcamera-gstreamer plasma-camera)
-device_packages=(caihong-audio caihong-device-support caihong-firmware caihong-kernel-updater caihong-qbootctl caihong-ssc)
+if ! grep -qsE '^priority=[0-9]+$' "$target/etc/dnf/repos.override.d/90-caihong-copr.repo"; then
+	echo "Caihong Copr priority override is missing" >&2
+	failed=1
+fi
+# The builder records every Copr package it installed, with the Copr EVR.
+mapfile -t copr_records < <(sed -n 's/^copr_package=//p' "$target/etc/caihong-rootfs-build-info" 2>/dev/null)
+if (( ${#copr_records[@]} == 0 )); then
+	echo "build metadata lists no Copr packages" >&2
+	failed=1
+fi
+for package in caihong-audio caihong-device-support caihong-firmware caihong-kernel-updater \
+	caihong-qbootctl caihong-ssc libcamera libcamera-ipa plasma-camera libavcodec-free; do
+	printf '%s\n' "${copr_records[@]}" | grep -q "^$package " ||
+		{ echo "build metadata does not list Copr package $package" >&2; failed=1; }
+done
 if ! command -v rpm >/dev/null 2>&1; then
 	echo "rpm is required to verify installed Fedora packages" >&2
 	failed=1
 else
-	for package in "${camera_packages[@]}" "${device_packages[@]}"; do
+	for record in "${copr_records[@]}"; do
+		package=${record%% *} expected=${record#* }
 		package_evr=$(rpm --root "$target" -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' "$package" 2>/dev/null || true)
-		expected='*caihong*'
-		case "$package" in
-			libcamera*|plasma-camera) expected='1:*caihong*' ;;
-		esac
-		# shellcheck disable=SC2053 # $expected is a glob pattern
-		if [[ -z $package_evr || $package_evr != $expected ]]; then
-			echo "Fedora rootfs package is missing or not a Caihong build: $package (${package_evr:-not installed})" >&2
+		if [[ $package_evr != "$expected" ]]; then
+			echo "Copr package $package is ${package_evr:-not installed}, expected $expected" >&2
 			failed=1
 		fi
 	done

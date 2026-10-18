@@ -226,8 +226,12 @@ updates also update the device packages:
 sudo dnf upgrade --refresh
 ```
 
-The Caihong `libcamera` and `ffmpeg` builds use `Epoch: 1` and DNF5 repository
-overrides, so Fedora's packages do not replace them.
+`caihong-device-support` installs
+`/etc/dnf/repos.override.d/90-caihong-copr.repo`, which gives the Copr
+repository priority 10 (Fedora uses 99). DNF then always takes a package name
+that exists in the Copr from the Copr, even when Fedora ships a newer version.
+Use `sudo dnf distro-sync` to switch packages that are still installed from
+Fedora over to the Copr builds.
 
 Kernel updates use two packages. `caihong-kernel-payload` carries the Image,
 DTB, boot images and modules of one kernel release; it is built from a kernel
@@ -275,8 +279,11 @@ sudo -E env COPR_REPO=fairyband/caihong SELINUX_MODE=permissive \
 ```
 
 The builder downloads the pinned Fedora 44 Workstation raw image and uses it
-only as a content source. It enables the Copr, installs the Caihong device,
-firmware, audio, SSC, camera and kernel-updater RPMs, overlays `rootfs/caihong/`,
+only as a content source. It enables the Copr and installs every binary
+package the Copr publishes, in the exact Copr build, replacing same-named
+Fedora packages. `-devel`, `-debuginfo` and `-debugsource` packages are skipped
+by default; override `COPR_EXCLUDE_REGEX` to change that. It then overlays
+`rootfs/caihong/`,
 installs the matching modules and boot payload, and writes a new
 `LABEL=linux` ext4 image for the Android direct-root boot path. After the
 service policies are ready, rebuild with `SELINUX_MODE=enforcing`. Run

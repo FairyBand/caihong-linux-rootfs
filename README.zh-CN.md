@@ -207,8 +207,10 @@ SELinux 上下文并重启，之后由 GNOME 初始设置创建用户账户。
 sudo dnf upgrade --refresh
 ```
 
-Caihong 的 `libcamera` 和 `ffmpeg` 构建使用 `Epoch: 1` 并带有 DNF5 仓库覆盖配置，
-因此不会被 Fedora 官方包替换。
+`caihong-device-support` 安装 `/etc/dnf/repos.override.d/90-caihong-copr.repo`，
+把 Copr 仓库优先级设为 10（Fedora 为 99）。因此只要某个包名在 Copr 中存在，DNF
+就总是从 Copr 安装它，即使 Fedora 提供更高的版本。仍从 Fedora 安装的同名包可用
+`sudo dnf distro-sync` 切换为 Copr 构建。
 
 内核更新由两个包完成。`caihong-kernel-payload` 包含某个内核版本的 Image、DTB、
 boot 镜像和模块，它由内核发布归档构建，不在普通 Copr 源码构建中生成。
@@ -253,8 +255,9 @@ sudo -E env COPR_REPO=fairyband/caihong SELINUX_MODE=permissive \
 ```
 
 构建脚本会下载固定版本的 Fedora 44 Workstation raw 镜像，仅把它当作内容来源：启用
-Copr，安装 Caihong 设备、固件、音频、SSC、相机和内核更新器 RPM，覆盖
-`rootfs/caihong/`，安装匹配的模块和 boot 载荷，最后为 Android 直接根分区启动路径
+Copr，按 Copr 中的确切构建安装其发布的全部二进制包，并替换同名的 Fedora 包（默认
+跳过 `-devel`、`-debuginfo` 和 `-debugsource`，可通过 `COPR_EXCLUDE_REGEX` 修改），
+覆盖 `rootfs/caihong/`，安装匹配的模块和 boot 载荷，最后为 Android 直接根分区启动路径
 重新生成 `LABEL=linux` 的 ext4 镜像。服务策略就绪后，用 `SELINUX_MODE=enforcing`
 重新构建。在挂载的镜像上运行 `scripts/verify-fedora-rootfs.sh ROOTFS_DIR` 进行检查。
 
