@@ -282,6 +282,9 @@ def main() -> int:
     kernel_package = release_dir / kernel_package_name
     if not kernel_package.is_file():
         raise RuntimeError(f"kernel package does not exist: {kernel_package}")
+    rpm_package = release_dir / "linux-caihong.rpm"
+    if not rpm_package.is_file():
+        raise RuntimeError(f"kernel RPM does not exist: {rpm_package}")
 
     compressed_rootfs = release_dir / f"{rootfs.name}.zst"
     print(f"compressing {rootfs.name} before release splitting")
@@ -295,6 +298,7 @@ def main() -> int:
         f"caihong-boot-linux-{kernel_release}.img",
         f"caihong-boot-userdata-{kernel_release}.img",
         kernel_package_name,
+        rpm_package.name,
     ):
         target = assets / name
         shutil.copy2(release_dir / name, target)
@@ -330,6 +334,11 @@ def main() -> int:
             "name": kernel_package_name,
             "bytes": kernel_package.stat().st_size,
             "sha256": asset_hashes[kernel_package_name],
+        },
+        "rpm_package": {
+            "name": rpm_package.name,
+            "bytes": rpm_package.stat().st_size,
+            "sha256": asset_hashes[rpm_package.name],
         },
         "rootfs": {
             **rootfs_metadata,
