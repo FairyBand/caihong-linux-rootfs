@@ -9,10 +9,11 @@ Type=notify
 NotifyAccess=all
 Environment=HOME=/root
 Environment=LD_LIBRARY_PATH=/usr/lib/caihong-adbd
-ExecStartPre=/usr/local/sbin/caihong-adbd-gadget setup
+Environment=ADBD_USER=root
+ExecStartPre=+/usr/local/sbin/caihong-adbd-gadget setup
 ExecStart=/usr/local/sbin/caihong-adbd-run
-ExecStartPost=/usr/local/sbin/caihong-adbd-gadget bind
-ExecStopPost=/usr/local/sbin/caihong-adbd-gadget teardown
+ExecStartPost=+/usr/local/sbin/caihong-adbd-gadget bind
+ExecStopPost=+/usr/local/sbin/caihong-adbd-gadget teardown
 Restart=on-failure
 RestartSec=2s
 TimeoutStartSec=30s

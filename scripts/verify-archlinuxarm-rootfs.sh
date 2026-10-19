@@ -57,6 +57,8 @@ usr/lib/caihong-npu/qnn/libQnnHtp.so
 usr/lib/caihong-npu/qnn/libQnnHtpPrepare.so
 usr/lib/caihong-npu/qnn/libQnnHtpV75Stub.so
 usr/bin/adbd
+usr/lib/caihong-adbd/runtime
+usr/lib/caihong-adbd/libprotobuf.so.32
 usr/share/caihong-npu/dsp/v75/fastrpc_shell_unsigned_3
 usr/share/caihong-npu/dsp/v75/libcalculator_skel.so
 usr/share/caihong-npu/dsp/v75/libQnnHtpV75Skel.so
@@ -144,13 +146,19 @@ else
 			failed=1
 		fi
 	done
+	camera_icp_modules=
+	if [ -n "$(find "$module_dir" -type f \
+		\( -name qcom_camera_icp.ko -o -name qcom-camera-icp-bps.ko \) \
+		-print -quit)" ]; then
+		camera_icp_modules="qcom_camera_icp qcom-camera-icp-bps"
+	fi
 	for module in oneplus_pogo nt36532e_ts sc8547_cp caihong_pen_power \
 		bnep rfcomm hidp veth bridge br_netfilter nft_compat xt_CHECKSUM \
 		zram zstd fuse cpufreq_conservative snd-seq hid-steam hid-nintendo \
 		hid-playstation hid-sony \
 		xpad \
-		xt_MASQUERADE system_heap cma_heap qcom_camera_icp \
-		qcom-camera-icp-bps qcom-iris sc820cs sc1320cs gt9772 ath12k_wifi7 \
+		xt_MASQUERADE system_heap cma_heap qcom-iris sc820cs sc1320cs gt9772 \
+		ath12k_wifi7 $camera_icp_modules \
 		qcom_q6v5_pas; do
 		module_file=$(find "$module_dir" -type f -name "$module.ko" -print -quit)
 		if [ -z "$module_file" ]; then

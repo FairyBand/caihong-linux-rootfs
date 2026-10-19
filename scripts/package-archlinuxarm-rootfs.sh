@@ -616,6 +616,7 @@ if ! "$chroot_tool" "$rootfs" "${chroot_env[@]}" \
 	exit 1
 fi
 rm -f -- "$rootfs/tmp/linux-caihong.pkg.tar.zst"
+"$project_dir/scripts/install-caihong-adbd.sh" "$rootfs"
 
 rm -f -- "$rootfs/usr/bin/qemu-aarch64-static"
 rm -f -- "$rootfs/etc/resolv.conf"

@@ -226,6 +226,7 @@ pen_module=$(find "$rootfs/usr/lib/modules/$kernel_release" -type f \
 [[ -n $pen_module ]] || fail "installed module tree has no caihong_pen_power.ko"
 install -D -m 0644 "$pen_module" \
 	"$rootfs/usr/local/lib/caihong/caihong_pen_power.ko"
+"$project_dir/scripts/install-caihong-adbd.sh" "$rootfs"
 
 echo "installing Caihong boot payload metadata"
 install -d -m 0755 "$rootfs/usr/lib/linux-caihong"

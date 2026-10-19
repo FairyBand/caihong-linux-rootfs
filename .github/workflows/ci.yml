@@ -27,6 +27,7 @@ jobs:
             scripts/build-linux-caihong-package.sh \
             scripts/build-linux-caihong-rpm.sh \
             scripts/checkout-dependencies.sh \
+            scripts/install-caihong-adbd.sh \
             scripts/install-caihong-modules.sh \
             scripts/package-armada-rootfs.sh \
             scripts/verify-armada-rootfs.sh \

@@ -161,6 +161,7 @@ rsync -a --exclude=SOURCE.md --exclude=SHA256SUMS \
 echo "installing Caihong rootfs overlay"
 cp -a "$project_dir/rootfs/archlinuxarm/." "$target/"
 rm -f -- "$target/etc/alsa/state-daemon.conf"
+"$project_dir/scripts/install-caihong-adbd.sh" "$target"
 
 if [ "$install_ssc" = 1 ]; then
 	if [ ! -d "$ssc_bundle" ]; then

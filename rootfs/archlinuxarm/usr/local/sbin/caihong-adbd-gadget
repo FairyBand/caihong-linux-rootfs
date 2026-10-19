@@ -11,6 +11,13 @@ gadget_dir=$configfs/usb_gadget/caihong
 function_dir=$gadget_dir/functions/$function_name
 config_dir=$gadget_dir/configs/c.1
 ready_file=$function_dir/ready
+adbd_user=${ADBD_USER:-root}
+
+adbd_uid=$(id -u "$adbd_user") || {
+	echo "unknown ADB runtime user: $adbd_user" >&2
+	exit 1
+}
+adbd_gid=$(id -g "$adbd_user")
 
 ensure_configfs()
 {
@@ -53,7 +60,7 @@ configure()
 		printf 'caihong-adb\n' > "$gadget_dir/strings/0x409/serialnumber"
 	fi
 	(cd -- "$config_dir" && ln -s -- "../../functions/$function_name" "$function_name")
-	mount -t functionfs adb "$mount_point" -o uid=0,gid=0
+	mount -t functionfs adb "$mount_point" -o "uid=$adbd_uid,gid=$adbd_gid"
 }
 
 bind()
