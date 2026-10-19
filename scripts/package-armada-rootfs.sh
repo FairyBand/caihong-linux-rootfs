@@ -134,6 +134,7 @@ SYSTEMD_OFFLINE=1 chroot "$rootfs" /usr/bin/env -i \
 	HOME=/root LANG=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
 	/usr/bin/dnf5 -y install --setopt=install_weak_deps=False \
 	dnsmasq e2fsprogs hostapd iio-sensor-proxy openssh-server \
+	android-tools \
 	libbsd libqmi libqrtr-glib libyaml protobuf-c \
 	libcamera libcamera-ipa libcamera-tools libcamera-qcam \
 	libcamera-gstreamer plasma-camera \
@@ -149,6 +150,7 @@ rsync -aHAX --numeric-ids --chown=0:0 \
 rsync -aHAX --numeric-ids --chown=0:0 \
 	"$project_dir/rootfs/armada/" "$rootfs/"
 rm -f -- "$rootfs/etc/sudoers.d/10-alarm"
+rm -f -- "$rootfs/etc/alsa/state-daemon.conf"
 
 echo "building and installing the Caihong libcamera stack"
 CHROOT_TOOL=chroot LIBCAMERA_LIBDIR=lib64 \
@@ -282,6 +284,7 @@ enable_unit()
 }
 
 for unit in NetworkManager.service bluetooth.service \
+	caihong-adbd.service \
 	caihong-grow-rootfs.service caihong-fix-kwin-brightness.service \
 	caihong-clean-pogo-kde.service caihong-bluetooth-autostart.service \
 	caihong-bluetooth-late-autostart.timer \

@@ -7,6 +7,10 @@ are not covered by this repository's GPL-2.0-only license. The AudioReach
 topology is regenerated from `external/audioreach-topology` during the rootfs
 build.
 
+The board-specific `vpu33_4v.mbn` is selected by the Caihong device tree for
+the Qualcomm Iris video codec; the generic SM8650 VPU image is not compatible
+with this device's signed firmware layout.
+
 The `bps-striping-bggr10-nv12-*` tables were generated for the validated
 camera modes with the matching stock Qualcomm BPS striping library. They are
 runtime inputs for the mainline Camera ICP/BPS driver and remain subject to

@@ -64,6 +64,7 @@ required_paths=(
 	usr/lib64/caihong-npu/qnn/libQnnHtp.so
 	usr/lib64/caihong-npu/qnn/libQnnHtpPrepare.so
 	usr/lib64/caihong-npu/qnn/libQnnHtpV75Stub.so
+	usr/bin/adbd
 	usr/share/caihong-npu/dsp/v75/fastrpc_shell_unsigned_3
 	usr/share/caihong-npu/dsp/v75/libcalculator_skel.so
 	usr/share/caihong-npu/dsp/v75/libQnnHtpV75Skel.so
@@ -77,6 +78,8 @@ required_paths=(
 	usr/local/sbin/caihong-flashlight
 	usr/local/sbin/caihong-hotspot
 	usr/local/sbin/caihong-pen-charge
+	usr/local/sbin/caihong-adbd-gadget
+	usr/local/sbin/caihong-adbd-run
 	usr/local/lib/caihong/caihong_pen_power.ko
 	usr/lib/linux-caihong/Image
 	usr/lib/linux-caihong/caihong.dtb
@@ -89,16 +92,19 @@ required_paths=(
 	usr/local/lib/caihong-ssc/libhexagonrpc.so.0.5
 	usr/local/lib/caihong-ssc/libssc.so.2
 	usr/lib/systemd/system/iio-sensor-proxy.service.d/caihong-ssc.conf
+	usr/lib/tmpfiles.d/caihong-alsa.conf
 	usr/lib/firmware/ath12k/WCN7850/hw2.0/board-2.bin
 	usr/lib/firmware/awinic/caihong-aw88261-acf.bin
 	usr/lib/firmware/novatek/DT-novatek-nt36532.bin
 	usr/lib/firmware/qcom/sm8650/SM8650-MTP-tplg.bin
+	usr/lib/firmware/qcom/sm8650/Oneplus/caihong/vpu33_4v.mbn
 	usr/lib/firmware/qcom/sm8650/bps-striping-bggr10-nv12-3264x2448.bin
 	usr/lib/firmware/qcom/sm8650/bps-striping-bggr10-nv12-4208x3120.bin
 	usr/lib/firmware/qcom/sm8650/bps-striping-bggr10-nv12-640x480.bin
 	etc/modules-load.d/armada-handheld.conf
 	etc/udev/rules.d/99-caihong-dma-heap.rules
 	etc/systemd/system/multi-user.target.wants/caihong-hardware-mac.service
+	etc/systemd/system/multi-user.target.wants/caihong-adbd.service
 	etc/systemd/system/multi-user.target.wants/caihong-mark-boot-successful.service
 	etc/systemd/system/multi-user.target.wants/caihong-ssc.service
 	etc/systemd/system/timers.target.wants/caihong-bluetooth-late-autostart.timer
@@ -112,6 +118,11 @@ required_paths=(
 for path in "${required_paths[@]}"; do
 	require_path "$path"
 done
+
+if [[ -e $target/etc/alsa/state-daemon.conf ]]; then
+	echo "ALSA state daemon mode must be disabled in Armada" >&2
+	failed=1
+fi
 
 obsolete_camera_paths=(
 	usr/lib/libcamera/ipa/ipa_soft_simple.so
@@ -204,8 +215,9 @@ else
 		bnep rfcomm hidp veth bridge br_netfilter nft_compat xt_CHECKSUM \
 		zram zstd fuse cpufreq_conservative snd-seq hid-steam hid-nintendo \
 		hid-playstation hid-sony \
+		xpad \
 		xt_MASQUERADE system_heap cma_heap qcom_camera_icp \
-		qcom-camera-icp-bps sc820cs sc1320cs gt9772 \
+		qcom-camera-icp-bps qcom-iris sc820cs sc1320cs gt9772 \
 		ath12k_wifi7 qcom_q6v5_pas; do
 		module_file=$(find "$module_dir" -type f -name "$module.ko" -print -quit)
 		if [[ -z $module_file ]]; then

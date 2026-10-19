@@ -39,6 +39,7 @@ etc/systemd/system/display-manager.service
 etc/systemd/system/multi-user.target.wants/NetworkManager.service
 etc/systemd/system/multi-user.target.wants/caihong-bluetooth-autostart.service
 etc/systemd/system/multi-user.target.wants/caihong-hardware-mac.service
+etc/systemd/system/multi-user.target.wants/caihong-adbd.service
 etc/systemd/system/multi-user.target.wants/caihong-mark-boot-successful.service
 etc/systemd/system/graphical.target.wants/caihong-clean-pogo-kde.service
 etc/systemd/system/multi-user.target.wants/caihong-ssc.service
@@ -55,6 +56,7 @@ usr/lib/caihong-npu/libcalculator.so
 usr/lib/caihong-npu/qnn/libQnnHtp.so
 usr/lib/caihong-npu/qnn/libQnnHtpPrepare.so
 usr/lib/caihong-npu/qnn/libQnnHtpV75Stub.so
+usr/bin/adbd
 usr/share/caihong-npu/dsp/v75/fastrpc_shell_unsigned_3
 usr/share/caihong-npu/dsp/v75/libcalculator_skel.so
 usr/share/caihong-npu/dsp/v75/libQnnHtpV75Skel.so
@@ -63,8 +65,11 @@ usr/share/caihong-npu/dsp/v75/libc++abi.so.1
 usr/share/licenses/caihong-npu/LICENSE.fastrpc
 usr/share/licenses/caihong-npu/LICENSE.geniex-qairt-plugin
 usr/share/licenses/caihong-npu/THIRD_PARTY_NOTICES.QAIRT.md
+usr/lib/firmware/qcom/sm8650/Oneplus/caihong/vpu33_4v.mbn
 usr/local/sbin/caihong-bluetooth-autostart
 usr/local/sbin/caihong-hardware-mac
+usr/local/sbin/caihong-adbd-gadget
+usr/local/sbin/caihong-adbd-run
 usr/local/sbin/caihong-hotspot
 usr/local/sbin/caihong-flashlight
 usr/local/sbin/caihong-fix-kwin-brightness
@@ -98,6 +103,7 @@ usr/local/lib/caihong-ssc/libhexagonrpc.so.0.5
 usr/local/lib/caihong-ssc/libssc.so.2
 usr/lib/systemd/system/caihong-ssc.service
 usr/lib/systemd/system/iio-sensor-proxy.service.d/caihong-ssc.conf
+usr/lib/tmpfiles.d/caihong-alsa.conf
 usr/lib/udev/rules.d/90-caihong-ssc.rules
 var/lib/caihong-ssc/root/sensors/sns_reg.conf
 etc/udev/rules.d/99-caihong-dma-heap.rules
@@ -115,6 +121,11 @@ usr/lib/firmware/qcom/sm8650/bps-striping-bggr10-nv12-4208x3120.bin
 usr/lib/firmware/qcom/sm8650/bps-striping-bggr10-nv12-640x480.bin'
 
 failed=0
+
+if [ -e "$target/etc/alsa/state-daemon.conf" ]; then
+	echo "ALSA state daemon mode must be disabled" >&2
+	failed=1
+fi
 
 module_releases=()
 for candidate in "$target"/usr/lib/modules/*; do
@@ -137,8 +148,9 @@ else
 		bnep rfcomm hidp veth bridge br_netfilter nft_compat xt_CHECKSUM \
 		zram zstd fuse cpufreq_conservative snd-seq hid-steam hid-nintendo \
 		hid-playstation hid-sony \
+		xpad \
 		xt_MASQUERADE system_heap cma_heap qcom_camera_icp \
-		qcom-camera-icp-bps sc820cs sc1320cs gt9772 ath12k_wifi7 \
+		qcom-camera-icp-bps qcom-iris sc820cs sc1320cs gt9772 ath12k_wifi7 \
 		qcom_q6v5_pas; do
 		module_file=$(find "$module_dir" -type f -name "$module.ko" -print -quit)
 		if [ -z "$module_file" ]; then

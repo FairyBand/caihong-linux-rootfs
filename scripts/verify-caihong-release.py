@@ -25,6 +25,10 @@ REQUIRED_CONFIGS = (
     "CONFIG_PHY_QCOM_QMP_UFS=y",
     "CONFIG_EXT4_FS=y",
     'CONFIG_INITRAMFS_SOURCE=""',
+    "CONFIG_FW_LOADER_COMPRESS=y",
+    "CONFIG_FW_LOADER_COMPRESS_XZ=y",
+    "CONFIG_INPUT_JOYDEV=y",
+    "CONFIG_INPUT_UINPUT=y",
 )
 REQUIRED_MODULES = (
     "oneplus_pogo",
@@ -39,6 +43,8 @@ REQUIRED_MODULES = (
     "rfcomm",
     "hidp",
     "qcom_q6v5_pas",
+    "qcom-iris",
+    "xpad",
 )
 EARLY_FIRMWARE = (
     "qcom/gen70900_sqe.fw",

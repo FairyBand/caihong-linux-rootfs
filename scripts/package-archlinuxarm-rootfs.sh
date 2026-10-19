@@ -108,6 +108,7 @@ packages=(
 	bluez
 	bluez-utils
 	openssh
+	android-tools
 	usbutils
 	pciutils
 	i2c-tools
@@ -472,6 +473,7 @@ save_package_cache
 echo "reapplying the Caihong rootfs overlay after package installation"
 rsync -aHAX --numeric-ids --chown=0:0 \
 	"$project_dir/rootfs/archlinuxarm/" "$rootfs/"
+rm -f -- "$rootfs/etc/alsa/state-daemon.conf"
 
 echo "enabling NetworkManager, Bluetooth and the Plasma display manager"
 # These operations only create/remove symlinks. Running the host systemctl in
@@ -491,6 +493,7 @@ systemctl --root="$rootfs" enable caihong-grow-rootfs.service
 systemctl --root="$rootfs" enable caihong-fix-kwin-brightness.service
 systemctl --root="$rootfs" enable caihong-clean-pogo-kde.service
 systemctl --root="$rootfs" enable caihong-bluetooth-autostart.service
+systemctl --root="$rootfs" enable caihong-adbd.service
 "$chroot_tool" "$rootfs" "${chroot_env[@]}" \
 	usermod -aG audio,input,video,wheel alarm
 chmod 0440 "$rootfs/etc/sudoers.d/10-alarm"
