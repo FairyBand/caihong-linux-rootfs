@@ -147,11 +147,43 @@ jobs:
             esac
           done < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
 
+      - name: Upload Armada boot artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: caihong-armada-boot-${{ github.run_id }}
+          path: |
+            release/armada-assets/caihong-boot-linux-*.img
+            release/armada-assets/caihong-boot-userdata-*.img
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload Armada kernel package
+        uses: actions/upload-artifact@v4
+        with:
+          name: caihong-armada-kernel-package-${{ github.run_id }}
+          path: release/armada-assets/linux-caihong-*-aarch64.pkg.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
       - name: Upload Armada rootfs build
         uses: actions/upload-artifact@v4
         with:
-          name: caihong-armada-${{ github.run_id }}
-          path: release/armada-assets/*
+          name: caihong-armada-rootfs-${{ github.run_id }}
+          path: release/armada-assets/caihong-armada-rootfs-*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload Armada metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: caihong-armada-metadata-${{ github.run_id }}
+          path: |
+            release/armada-assets/caihong-armada-release-manifest.json
+            release/armada-assets/ARMADA_NOTES.md
+            release/armada-assets/SHA256SUMS.armada
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

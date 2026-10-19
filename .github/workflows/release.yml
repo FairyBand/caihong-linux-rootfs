@@ -116,7 +116,8 @@ jobs:
             --rootfs "release/caihong-rootfs-$kernel_release.ext4.sparse.img" \
             --dependencies build/dependencies.resolved.env \
             --assets release/assets \
-            --notes release/RELEASE_NOTES.md
+            --notes release/RELEASE_NOTES.md \
+            --require-rpm
 
       - name: Publish GitHub release
         if: github.event_name == 'push' || inputs.publish_release
@@ -154,12 +155,49 @@ jobs:
               --notes-file release/RELEASE_NOTES.md
           fi
 
-      - name: Upload build verification artifacts
+      - name: Upload boot artifacts
         if: github.event_name == 'workflow_dispatch' && !inputs.publish_release
         uses: actions/upload-artifact@v4
         with:
-          name: caihong-linux-${{ github.run_id }}
-          path: release/assets/*
+          name: caihong-boot-${{ github.run_id }}
+          path: |
+            release/assets/caihong-boot-linux-*.img
+            release/assets/caihong-boot-userdata-*.img
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+      - name: Upload kernel package artifacts
+        if: github.event_name == 'workflow_dispatch' && !inputs.publish_release
+        uses: actions/upload-artifact@v4
+        with:
+          name: caihong-kernel-package-${{ github.run_id }}
+          path: |
+            release/assets/linux-caihong-*-aarch64.pkg.tar.zst
+            release/assets/linux-caihong.rpm
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+      - name: Upload rootfs artifacts
+        if: github.event_name == 'workflow_dispatch' && !inputs.publish_release
+        uses: actions/upload-artifact@v4
+        with:
+          name: caihong-rootfs-${{ github.run_id }}
+          path: release/assets/caihong-rootfs-*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+      - name: Upload release metadata
+        if: github.event_name == 'workflow_dispatch' && !inputs.publish_release
+        uses: actions/upload-artifact@v4
+        with:
+          name: caihong-metadata-${{ github.run_id }}
+          path: |
+            release/release-manifest.json
+            release/RELEASE_NOTES.md
+            release/SHA256SUMS
           if-no-files-found: error
           compression-level: 0
           retention-days: 3

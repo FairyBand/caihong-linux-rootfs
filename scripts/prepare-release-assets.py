@@ -260,6 +260,7 @@ def main() -> int:
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--notes", type=Path, required=True)
+    parser.add_argument("--require-rpm", action="store_true")
     args = parser.parse_args()
 
     release_dir = args.release_dir.resolve()
@@ -283,7 +284,7 @@ def main() -> int:
     if not kernel_package.is_file():
         raise RuntimeError(f"kernel package does not exist: {kernel_package}")
     rpm_package = release_dir / "linux-caihong.rpm"
-    if not rpm_package.is_file():
+    if args.require_rpm and not rpm_package.is_file():
         raise RuntimeError(f"kernel RPM does not exist: {rpm_package}")
 
     compressed_rootfs = release_dir / f"{rootfs.name}.zst"
@@ -294,12 +295,14 @@ def main() -> int:
         shutil.rmtree(assets)
     assets.mkdir(parents=True)
     copied = []
-    for name in (
+    names = [
         f"caihong-boot-linux-{kernel_release}.img",
         f"caihong-boot-userdata-{kernel_release}.img",
         kernel_package_name,
-        rpm_package.name,
-    ):
+    ]
+    if rpm_package.is_file():
+        names.append(rpm_package.name)
+    for name in names:
         target = assets / name
         shutil.copy2(release_dir / name, target)
         copied.append(target)
@@ -335,11 +338,6 @@ def main() -> int:
             "bytes": kernel_package.stat().st_size,
             "sha256": asset_hashes[kernel_package_name],
         },
-        "rpm_package": {
-            "name": rpm_package.name,
-            "bytes": rpm_package.stat().st_size,
-            "sha256": asset_hashes[rpm_package.name],
-        },
         "rootfs": {
             **rootfs_metadata,
             "image_name": rootfs.name,
@@ -356,6 +354,12 @@ def main() -> int:
         },
         "dependencies": dependencies,
     }
+    if rpm_package.is_file():
+        manifest["rpm_package"] = {
+            "name": rpm_package.name,
+            "bytes": rpm_package.stat().st_size,
+            "sha256": asset_hashes[rpm_package.name],
+        }
     manifest_path = release_dir / "release-manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     sums = release_dir / "SHA256SUMS"
