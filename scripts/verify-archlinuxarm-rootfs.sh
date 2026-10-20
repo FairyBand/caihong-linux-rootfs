@@ -157,7 +157,8 @@ else
 		zram zstd fuse cpufreq_conservative snd-seq hid-steam hid-nintendo \
 		hid-playstation hid-sony \
 		xpad \
-		xt_MASQUERADE system_heap cma_heap qcom-iris sc820cs sc1320cs gt9772 \
+		xt_MASQUERADE system_heap cma_heap nvmem-reboot-mode nvmem_qcom-spmi-sdam \
+		videocc-sm8550 qcom-iris sc820cs sc1320cs gt9772 \
 		ath12k_wifi7 $camera_icp_modules \
 		qcom_q6v5_pas; do
 		module_file=$(find "$module_dir" -type f -name "$module.ko" -print -quit)
