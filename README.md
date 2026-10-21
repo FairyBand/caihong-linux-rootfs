@@ -319,8 +319,9 @@ sudo -E env COPR_REPO=fairyband/caihong SELINUX_MODE=permissive \
 The builder downloads the pinned Fedora 44 Workstation raw image and uses it
 only as a content source. It enables the Copr and installs every binary
 package the Copr publishes, in the exact Copr build, replacing same-named
-Fedora packages. `-devel`, `-debuginfo` and `-debugsource` packages are skipped
-by default; override `COPR_EXCLUDE_REGEX` to change that. It then overlays
+Fedora packages. No packages are excluded by default, including `-devel`,
+`-debuginfo` and `-debugsource`; set `COPR_EXCLUDE_REGEX` explicitly to omit
+matching packages. It then overlays
 `rootfs/caihong/`,
 installs the matching modules and boot payload, and writes a new
 `LABEL=linux` ext4 image for the Android direct-root boot path. After the

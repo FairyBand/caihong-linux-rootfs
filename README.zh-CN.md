@@ -286,9 +286,9 @@ sudo -E env COPR_REPO=fairyband/caihong SELINUX_MODE=permissive \
 ```
 
 构建脚本会下载固定版本的 Fedora 44 Workstation raw 镜像，仅把它当作内容来源：启用
-Copr，按 Copr 中的确切构建安装其发布的全部二进制包，并替换同名的 Fedora 包（默认
-跳过 `-devel`、`-debuginfo` 和 `-debugsource`，可通过 `COPR_EXCLUDE_REGEX` 修改），
-覆盖 `rootfs/caihong/`，安装匹配的模块和 boot 载荷，最后为 Android 直接根分区启动路径
+Copr，按 Copr 中的确切构建安装该仓库发布的所有包（包括 `-devel`、`-debuginfo` 和
+`-debugsource`；仅在显式设置 `COPR_EXCLUDE_REGEX` 时排除匹配项），覆盖 `rootfs/caihong/`，
+安装匹配的模块和 boot 载荷，最后为 Android 直接根分区启动路径
 重新生成 `LABEL=linux` 的 ext4 镜像。服务策略就绪后，用 `SELINUX_MODE=enforcing`
 重新构建。在挂载的镜像上运行 `scripts/verify-fedora-rootfs.sh ROOTFS_DIR` 进行检查。
 

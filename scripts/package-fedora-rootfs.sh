@@ -17,10 +17,9 @@ fedora_image_sha256=${FEDORA_IMAGE_SHA256:-0361c13141e6f57e24d6ee5227066c33a45f7
 module_tree=${MODULE_TREE:-"$project_dir/modules-current"}
 copr_repo=${COPR_REPO:-fairyband/caihong}
 copr_repo_id="copr:copr.fedorainfracloud.org:${copr_repo//\//:}"
-# Every binary package in the Copr is installed.  Development and debug
-# packages are skipped unless COPR_EXCLUDE_REGEX is overridden (set it to a
-# pattern that matches nothing, for example '^$', to install them as well).
-copr_exclude_regex=${COPR_EXCLUDE_REGEX:-'-(devel|debuginfo|debugsource)$'}
+# Install every binary package in the Copr by default, including devel and
+# debug packages. Set COPR_EXCLUDE_REGEX explicitly to omit selected names.
+copr_exclude_regex=${COPR_EXCLUDE_REGEX-}
 # Repository priority 10 beats Fedora's default 99: a package name present in
 # the Copr is always taken from the Copr, even when Fedora has a newer EVR.
 # caihong-device-support installs the same setting for later dnf runs.
@@ -229,14 +228,22 @@ chroot "$rootfs" "${chroot_env[@]}" dnf5 repoquery --refresh --quiet "${copr_set
 	--repo="$copr_repo_id" --latest-limit=1 --arch=aarch64,noarch \
 	--queryformat='%{name} %{epoch}:%{version}-%{release}\n' > "$copr_list.all"
 awk 'NF == 2' "$copr_list.all" | sort -u > "$copr_list.sorted"
-awk '{ print $1 }' "$copr_list.sorted" | grep -Ev -- "$copr_exclude_regex" > "$copr_list.names" || true
+if [[ -n $copr_exclude_regex ]]; then
+	awk '{ print $1 }' "$copr_list.sorted" | grep -Ev -- "$copr_exclude_regex" > "$copr_list.names" || true
+else
+	awk '{ print $1 }' "$copr_list.sorted" > "$copr_list.names"
+fi
 mapfile -t copr_packages < "$copr_list.names"
 (( ${#copr_packages[@]} > 0 )) || fail "Copr $copr_repo lists no installable packages"
 for package in caihong-device-support caihong-firmware caihong-kernel-updater caihong-ssc libcamera; do
 	grep -qx -- "$package" "$copr_list.names" || fail "Copr $copr_repo does not provide $package"
 done
 package=
-skipped=$(awk '{ print $1 }' "$copr_list.sorted" | grep -E -- "$copr_exclude_regex" | tr '\n' ' ' || true)
+if [[ -n $copr_exclude_regex ]]; then
+	skipped=$(awk '{ print $1 }' "$copr_list.sorted" | grep -E -- "$copr_exclude_regex" | tr '\n' ' ' || true)
+else
+	skipped=
+fi
 echo "installing ${#copr_packages[@]} Copr packages: ${copr_packages[*]}"
 [[ -z $skipped ]] || echo "skipping Copr packages matching $copr_exclude_regex: $skipped"
 

@@ -39,8 +39,8 @@ REQUIRED_CONFIGS = (
     "CONFIG_NET=y",
     "CONFIG_INET=y",
     "CONFIG_NETWORK_SECMARK=y",
-    "CONFIG_QCOM_IRIS=y",
-    "CONFIG_VIDEO_QCOM_VENUS=y",
+    "CONFIG_VIDEO_QCOM_IRIS=m",
+    "CONFIG_VIDEO_QCOM_VENUS=m",
     'CONFIG_LSM="landlock,lockdown,yama,integrity,selinux,bpf,ipe"',
     'CONFIG_INITRAMFS_SOURCE=""',
 )
@@ -60,8 +60,8 @@ REQUIRED_MODULES = (
     "qcom-iris",
     "xpad",
     "nvmem-reboot-mode",
-    "nvmem-qcom-spmi-sdam",
-    "gunyah-wdt",
+    "nvmem_qcom-spmi-sdam",
+    "gunyah_wdt",
     # The audio graph cannot probe without the PCM core and its QDSP/codec
     # closure. Keep these in the release contract so a host modprobe rule
     # cannot silently produce a soundless image.
