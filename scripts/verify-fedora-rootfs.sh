@@ -17,6 +17,7 @@ grep -qx 'distribution=fedora' "$target/etc/caihong-rootfs-build-info" 2>/dev/nu
 grep -qx 'LABEL=linux / ext4 rw,noatime 0 1' "$target/etc/fstab" 2>/dev/null || { echo "root filesystem fstab entry is not configured for LABEL=linux" >&2; failed=1; }
 for path in \
 	etc/selinux/config \
+	etc/systemd/sleep.conf.d/10-caihong-s2idle.conf \
 	usr/lib/systemd/system/caihong-ssc.service \
 	usr/lib/systemd/system/iio-sensor-proxy.service.d/caihong-ssc.conf \
 	usr/lib/linux-caihong/Image usr/lib/linux-caihong/caihong.dtb \
@@ -27,6 +28,11 @@ for path in \
 	etc/modules-load.d/caihong.conf; do
 	require_path "$path"
 done
+if ! grep -qx 'MemorySleepMode=s2idle' \
+	"$target/etc/systemd/sleep.conf.d/10-caihong-s2idle.conf" 2>/dev/null; then
+	echo "systemd memory sleep mode is not configured for s2idle" >&2
+	failed=1
+fi
 for module in snd-pcm snd-pcm-dmaengine snd-soc-core snd-q6apm q6prm \
 	q6apm-dai q6apm-lpass-dais snd-soc-wcd939x-sdw snd-soc-aw88261 \
 	snd-soc-sc8280xp; do
