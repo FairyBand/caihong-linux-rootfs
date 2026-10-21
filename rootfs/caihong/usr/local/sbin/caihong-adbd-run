@@ -1,0 +1,42 @@
+#!/bin/bash
+set -Eeuo pipefail
+
+adbd_pid=
+
+stop_adbd()
+{
+	if [[ -n ${adbd_pid:-} ]] && kill -0 "$adbd_pid" 2>/dev/null; then
+		kill "$adbd_pid"
+		wait "$adbd_pid" || true
+	fi
+}
+
+has_usb_worker()
+{
+	local task
+	for task in "/proc/$adbd_pid/task/"*/comm; do
+		[[ $(<"$task") == UsbFfs-worker ]] && return 0
+	done
+	return 1
+}
+
+trap stop_adbd EXIT INT TERM
+/usr/bin/adbd &
+adbd_pid=$!
+
+connected=0
+misses=0
+while kill -0 "$adbd_pid" 2>/dev/null; do
+	if has_usb_worker; then
+		connected=1
+		misses=0
+	elif ((connected)); then
+		((++misses < 5)) || {
+			echo "adbd lost its FunctionFS USB worker" >&2
+			exit 1
+		}
+	fi
+	sleep 1
+done
+
+wait "$adbd_pid"

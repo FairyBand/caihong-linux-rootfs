@@ -21,9 +21,12 @@ jobs:
             scripts/build-boot-v2.sh \
             scripts/build-caihong-audioreach-topology.sh \
             scripts/build-kernel-release.sh \
+            scripts/build-linux-caihong-rpm.sh \
             scripts/checkout-dependencies.sh \
             scripts/collect-caihong-diagnostics.sh \
+            scripts/install-caihong-adbd.sh \
             scripts/install-caihong-modules.sh \
+            scripts/install-caihong-npu.sh \
             scripts/package-fedora-rootfs.sh \
             scripts/verify-fedora-rootfs.sh \
             rootfs/caihong/usr/local/sbin/caihong-bluetooth-autostart \

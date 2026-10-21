@@ -1,0 +1,124 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+set -Eeuo pipefail
+CDPATH=
+
+function_name=ffs.adb
+mount_point=/dev/usb-ffs/adb
+configfs=/sys/kernel/config
+gadget_dir=$configfs/usb_gadget/caihong
+function_dir=$gadget_dir/functions/$function_name
+config_dir=$gadget_dir/configs/c.1
+ready_file=$function_dir/ready
+adbd_user=${ADBD_USER:-root}
+
+adbd_uid=$(id -u "$adbd_user") || {
+	echo "unknown ADB runtime user: $adbd_user" >&2
+	exit 1
+}
+adbd_gid=$(id -g "$adbd_user")
+
+ensure_configfs()
+{
+	if [[ ! -d $configfs/usb_gadget ]]; then
+		mkdir -p -- "$configfs"
+		mountpoint -q "$configfs" || mount -t configfs none "$configfs"
+	fi
+	[[ -d $configfs/usb_gadget ]] || {
+		echo "USB gadget configfs is unavailable" >&2
+		return 1
+	}
+}
+
+configure()
+{
+	ensure_configfs
+	teardown 2>/dev/null || true
+	local attempts=0
+	while [[ -e $gadget_dir ]]; do
+		((++attempts < 50)) || {
+			echo "timed out removing the previous USB gadget" >&2
+			return 1
+		}
+		sleep 0.1
+	done
+	mkdir -p -- "$gadget_dir" "$config_dir" "$function_dir" "$mount_point"
+	mkdir -- "$gadget_dir/strings/0x409" "$config_dir/strings/0x409"
+	printf '0x18d1\n' > "$gadget_dir/idVendor"
+	printf '0x4ee7\n' > "$gadget_dir/idProduct"
+	printf '0x0200\n' > "$gadget_dir/bcdUSB"
+	printf '0x0100\n' > "$gadget_dir/bcdDevice"
+	printf 'Caihong\n' > "$gadget_dir/strings/0x409/manufacturer"
+	printf 'Caihong ADB\n' > "$gadget_dir/strings/0x409/product"
+	printf 'ADB\n' > "$config_dir/strings/0x409/configuration"
+	printf '250\n' > "$config_dir/MaxPower"
+	local serial_file=/etc/caihong-adbd-serial
+	if [[ -r $serial_file ]]; then
+		head -n 1 "$serial_file" > "$gadget_dir/strings/0x409/serialnumber"
+	else
+		printf 'caihong-adb\n' > "$gadget_dir/strings/0x409/serialnumber"
+	fi
+	(cd -- "$config_dir" && ln -s -- "../../functions/$function_name" "$function_name")
+	mount -t functionfs adb "$mount_point" -o "uid=$adbd_uid,gid=$adbd_gid"
+}
+
+bind()
+{
+	local attempts=0
+	until [[ $(<"$ready_file") == 1 ]]; do
+		((++attempts < 100)) || {
+			echo "adbd did not initialize FunctionFS" >&2
+			return 1
+		}
+		sleep 0.1
+	done
+	local udc
+	udc=$(find /sys/class/udc -mindepth 1 -maxdepth 1 -printf '%f\n' | head -n 1)
+	[[ -n $udc ]] || {
+		echo "no USB device controller is available" >&2
+		return 1
+	}
+	printf '%s\n' "$udc" > "$gadget_dir/UDC"
+	local attempts=0
+	local stable=0
+	while ((++attempts < 150)); do
+		if [[ $(<"/sys/class/udc/$udc/state") == configured ]]; then
+			((++stable >= 50)) && return 0
+		else
+			stable=0
+		fi
+		sleep 0.1
+	done
+	echo "USB gadget did not remain configured" >&2
+	return 1
+}
+
+teardown()
+{
+	if [[ -e $gadget_dir/UDC ]]; then
+		printf '\n' > "$gadget_dir/UDC" 2>/dev/null || true
+	fi
+	rm -f -- "$config_dir/$function_name"
+	umount "$mount_point" 2>/dev/null || true
+	rmdir --ignore-fail-on-non-empty \
+		"$config_dir/strings/0x409" "$config_dir" 2>/dev/null || true
+	rmdir "$function_dir" 2>/dev/null || true
+	rmdir --ignore-fail-on-non-empty \
+		"$gadget_dir/strings/0x409" "$gadget_dir" 2>/dev/null || true
+	rmdir "$mount_point" 2>/dev/null || true
+	[[ ! -e $gadget_dir ]] || {
+		echo "failed to remove USB gadget" >&2
+		return 1
+	}
+}
+
+case ${1:-} in
+	setup) configure ;;
+	bind) bind ;;
+	teardown) teardown ;;
+	*)
+		echo "usage: $0 {setup|bind|teardown}" >&2
+		exit 2
+		;;
+esac

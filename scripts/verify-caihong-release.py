@@ -24,6 +24,10 @@ REQUIRED_CONFIGS = (
     "CONFIG_SCSI_UFS_QCOM=y",
     "CONFIG_PHY_QCOM_QMP_UFS=y",
     "CONFIG_EXT4_FS=y",
+    "CONFIG_FW_LOADER_COMPRESS=y",
+    "CONFIG_FW_LOADER_COMPRESS_XZ=y",
+    "CONFIG_INPUT_JOYDEV=y",
+    "CONFIG_INPUT_UINPUT=y",
     "CONFIG_SECURITY_NETWORK=y",
     "CONFIG_SECURITY_PATH=y",
     "CONFIG_SECURITY_SELINUX=y",
@@ -35,6 +39,8 @@ REQUIRED_CONFIGS = (
     "CONFIG_NET=y",
     "CONFIG_INET=y",
     "CONFIG_NETWORK_SECMARK=y",
+    "CONFIG_QCOM_IRIS=y",
+    "CONFIG_VIDEO_QCOM_VENUS=y",
     'CONFIG_LSM="landlock,lockdown,yama,integrity,selinux,bpf,ipe"',
     'CONFIG_INITRAMFS_SOURCE=""',
 )
@@ -51,6 +57,11 @@ REQUIRED_MODULES = (
     "rfcomm",
     "hidp",
     "qcom_q6v5_pas",
+    "qcom-iris",
+    "xpad",
+    "nvmem-reboot-mode",
+    "nvmem-qcom-spmi-sdam",
+    "gunyah-wdt",
     # The audio graph cannot probe without the PCM core and its QDSP/codec
     # closure. Keep these in the release contract so a host modprobe rule
     # cannot silently produce a soundless image.
