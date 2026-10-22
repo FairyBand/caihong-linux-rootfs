@@ -72,6 +72,7 @@ install -D -m 0755 "$bundle/qnn/bin/caihong-npu-htp-conv-test" \
 for input in libQnnHtp.so libQnnHtpPrepare.so libQnnHtpV75Stub.so; do
 	install -D -m 0755 "$bundle/qnn/lib/$input" \
 		"$rootfs/usr/$libdir/caihong-npu/qnn/$input"
+	ln -sfn "caihong-npu/qnn/$input" "$rootfs/usr/$libdir/$input"
 done
 install -D -m 0644 "$bundle/dsp/v75/libcalculator_skel.so" \
 	"$rootfs/usr/share/caihong-npu/dsp/v75/libcalculator_skel.so"
@@ -81,6 +82,21 @@ for input in libQnnHtpV75Skel.so libc++.so.1 libc++abi.so.1; do
 done
 install -D -m 0644 "$bundle/dsp/v75/fastrpc_shell_unsigned_3" \
 	"$rootfs/usr/share/caihong-npu/dsp/v75/fastrpc_shell_unsigned_3"
+install -d -m 0755 "$rootfs/usr/lib/dsp"
+for input in \
+	fastrpc_shell_unsigned_3 \
+	libcalculator_skel.so \
+	libQnnHtpV75Skel.so \
+	libc++.so.1 \
+	libc++abi.so.1; do
+	ln -sfn "../../share/caihong-npu/dsp/v75/$input" \
+		"$rootfs/usr/lib/dsp/$input"
+done
+install -d -m 0755 "$rootfs/usr/lib/udev/rules.d"
+cat > "$rootfs/usr/lib/udev/rules.d/99-caihong-fastrpc.rules" <<'EOF'
+SUBSYSTEM=="misc", KERNEL=="fastrpc-cdsp", GROUP="render", MODE="0660", TAG+="uaccess"
+EOF
+chmod 0644 "$rootfs/usr/lib/udev/rules.d/99-caihong-fastrpc.rules"
 install -D -m 0644 "$bundle/LICENSE.fastrpc" \
 	"$rootfs/usr/share/licenses/caihong-npu/LICENSE.fastrpc"
 install -D -m 0644 "$bundle/qnn/LICENSE.geniex-qairt-plugin" \
