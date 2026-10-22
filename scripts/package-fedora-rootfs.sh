@@ -18,8 +18,11 @@ module_tree=${MODULE_TREE:-"$project_dir/modules-current"}
 copr_repo=${COPR_REPO:-fairyband/caihong}
 copr_repo_id="copr:copr.fedorainfracloud.org:${copr_repo//\//:}"
 # Install every binary package in the Copr by default, including devel and
-# debug packages. Set COPR_EXCLUDE_REGEX explicitly to omit selected names.
-copr_exclude_regex=${COPR_EXCLUDE_REGEX-}
+# debug packages, except the standalone camera applications below. GNOME uses
+# Snapshot through PipeWire, and nothing depends on Plasma Camera or qcam. Set
+# COPR_EXCLUDE_REGEX to omit further names.
+copr_app_exclude_regex='^(plasma-camera|libcamera-qcam)(-debuginfo|-debugsource)?$'
+copr_exclude_regex=$copr_app_exclude_regex${COPR_EXCLUDE_REGEX:+|$COPR_EXCLUDE_REGEX}
 # Repository priority 10 beats Fedora's default 99: a package name present in
 # the Copr is always taken from the Copr, even when Fedora has a newer EVR.
 # caihong-device-support installs the same setting for later dnf runs.

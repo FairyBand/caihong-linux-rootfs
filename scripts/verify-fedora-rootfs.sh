@@ -57,14 +57,25 @@ if (( ${#copr_records[@]} == 0 )); then
 	failed=1
 fi
 for package in caihong-audio caihong-device-support caihong-firmware caihong-kernel-updater \
-	caihong-qbootctl caihong-ssc libcamera libcamera-ipa plasma-camera libavcodec-free; do
+	caihong-qbootctl caihong-ssc libcamera libcamera-ipa libavcodec-free; do
 	printf '%s\n' "${copr_records[@]}" | grep -q "^$package " ||
 		{ echo "build metadata does not list Copr package $package" >&2; failed=1; }
 done
+# Standalone camera applications are left out; GNOME uses Snapshot via PipeWire.
+if printf '%s\n' "${copr_records[@]}" | grep -Eq '^(plasma-camera|libcamera-qcam)(-debuginfo|-debugsource)? '; then
+	echo "build metadata lists an excluded camera application" >&2
+	failed=1
+fi
 if ! command -v rpm >/dev/null 2>&1; then
 	echo "rpm is required to verify installed Fedora packages" >&2
 	failed=1
 else
+	for package in plasma-camera libcamera-qcam; do
+		if rpm --root "$target" -q "$package" >/dev/null 2>&1; then
+			echo "excluded camera application $package is installed" >&2
+			failed=1
+		fi
+	done
 	for record in "${copr_records[@]}"; do
 		package=${record%% *} expected=${record#* }
 		package_evr=$(rpm --root "$target" -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' "$package" 2>/dev/null || true)
