@@ -80,18 +80,6 @@ bind()
 		return 1
 	}
 	printf '%s\n' "$udc" > "$gadget_dir/UDC"
-	local attempts=0
-	local stable=0
-	while ((++attempts < 150)); do
-		if [[ $(<"/sys/class/udc/$udc/state") == configured ]]; then
-			((++stable >= 50)) && return 0
-		else
-			stable=0
-		fi
-		sleep 0.1
-	done
-	echo "USB gadget did not remain configured" >&2
-	return 1
 }
 
 teardown()

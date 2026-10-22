@@ -86,12 +86,17 @@ Mainline Linux kernel, boot images, and matching modules for OnePlus Pad Pro.
 mkdir -p %{buildroot}
 cp -a "$stage"/. %{buildroot}/
 
+# Mirror packaging/linux-caihong/linux-caihong.install: install and upgrade both
+# activate the module tree and re-flash the slot the running kernel came from,
+# while removal only drops the activated module tree.
+%post
+/usr/lib/linux-caihong/install-current-slot || :
 %posttrans
-/usr/lib/linux-caihong/install-current-slot
+/usr/lib/linux-caihong/install-current-slot || :
 
 %preun
-if [ \"\$1\" -eq 0 ]; then
-    /usr/lib/linux-caihong/install-current-slot --remove-modules
+if [ "$1" -eq 0 ]; then
+    /usr/lib/linux-caihong/install-current-slot --remove-modules || :
 fi
 
 %files

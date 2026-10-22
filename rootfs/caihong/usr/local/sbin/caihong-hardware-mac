@@ -82,6 +82,41 @@ find_wifi_interface()
 	return 1
 }
 
+normalize_network_profiles()
+{
+	local wifi_interface=$1
+	local wifi_address profile temporary
+
+	wifi_address=$(cat "/sys/class/net/$wifi_interface/address")
+	[[ $wifi_address =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] || return 0
+	wifi_address=${wifi_address,,}
+
+	for profile in /etc/NetworkManager/system-connections/*.nmconnection; do
+		[[ -f $profile ]] || continue
+		temporary=$(mktemp --tmpdir=/etc/NetworkManager/system-connections \
+			'.caihong-network-profile.XXXXXX')
+		awk -v expected="$wifi_address" '
+			BEGIN { in_wifi = 0 }
+			$0 == "[wifi]" { in_wifi = 1; print; next }
+			in_wifi && /^\[/ { in_wifi = 0 }
+			in_wifi && /^mac-address=/ {
+				value = $0
+				sub(/^[^=]*=/, "", value)
+				if (tolower(value) != expected)
+					next
+			}
+			{ print }
+		' "$profile" > "$temporary"
+		if cmp -s "$profile" "$temporary"; then
+			rm -f "$temporary"
+			continue
+		fi
+		chown --reference="$profile" "$temporary"
+		chmod --reference="$profile" "$temporary"
+		mv -f "$temporary" "$profile"
+	done
+}
+
 wait_for_path /dev/disk/by-partlabel/nonmodemst1
 wait_for_path /dev/disk/by-partlabel/nonmodemst2
 
@@ -114,6 +149,8 @@ if [[ ${current_wlan,,} != "${wlan_mac,,}" ]]; then
 		ip link set dev "$wifi_interface" up
 	fi
 fi
+
+normalize_network_profiles "$wifi_interface"
 
 if ! current_bluetooth=$(wait_for_bluetooth_state); then
 	echo "Bluetooth controller did not become ready" >&2

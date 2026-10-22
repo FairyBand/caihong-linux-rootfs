@@ -39,12 +39,12 @@ if [ -n "$expected_release" ] && [ "$release" != "$expected_release" ]; then
 fi
 
 # These are the useful module roots for the current Caihong device tree:
-# ADSP/CDSP remoteproc, QRTR/PD mapper, FastRPC, WCN7850 WLAN/Bluetooth,
+# display, ADSP/CDSP remoteproc, QRTR/PD mapper, FastRPC, WCN7850 WLAN/Bluetooth,
 # battery management, pstore, and SoC identification. Dependencies are
 # resolved by the host modprobe. Built-in roots produce no .ko and are safe to
 # keep here, which prevents another configuration change from silently
 # dropping battery or WLAN support from a packaged rootfs.
-roots="qcom_q6v5_pas qrtr_smd qrtr_mhi qcom_pd_mapper fastrpc gunyah_wdt hci_uart bnep rfcomm hidp hid_multitouch hid_steam hid_nintendo hid_playstation hid_sony veth bridge br_netfilter nft_compat xt_CHECKSUM xt_MASQUERADE zram zstd fuse cpufreq_conservative ramoops socinfo qcom_battmgr nvmem_reboot_mode nvmem_qcom_spmi_sdam pwrseq_qcom_wcn pci_pwrctrl_pwrseq ath12k_wifi7 system_heap cma_heap camcc_sm8650 i2c_qcom_cci v4l2_cci qcom_camss videocc_sm8550 qcom_iris leds_qcom_flash pinctrl_sm8650_lpass_lpi soundwire_qcom snd_seq snd_q6apm q6prm q6prm_clocks q6apm_dai q6apm_lpass_dais snd_soc_lpass_va_macro snd_soc_lpass_wsa_macro snd_soc_lpass_rx_macro snd_soc_lpass_tx_macro snd_soc_wcd939x_sdw snd_soc_wcd939x snd_soc_aw88261 snd_soc_sc8280xp oneplus_pogo nt36532e_ts sc8547_cp caihong_pen_power sc820cs sc1320cs gt9772 xpad joydev uinput"
+roots="msm qcom_q6v5_pas qrtr_smd qrtr_mhi qcom_pd_mapper fastrpc gunyah_wdt hci_uart bnep rfcomm hidp hid_multitouch hid_steam hid_nintendo hid_playstation hid_sony veth bridge br_netfilter nft_compat xt_CHECKSUM xt_MASQUERADE zram zstd fuse cpufreq_conservative ramoops socinfo qcom_battmgr nvmem_reboot_mode nvmem_qcom_spmi_sdam pwrseq_qcom_wcn pci_pwrctrl_pwrseq ath12k_wifi7 system_heap cma_heap camcc_sm8650 i2c_qcom_cci v4l2_cci qcom_camss qcom_camera_icp qcom-camera-icp-bps videocc_sm8550 qcom_iris leds_qcom_flash pinctrl_sm8650_lpass_lpi soundwire_qcom snd_seq snd_q6apm q6prm q6prm_clocks q6apm_dai q6apm_lpass_dais snd_soc_lpass_va_macro snd_soc_lpass_wsa_macro snd_soc_lpass_rx_macro snd_soc_lpass_tx_macro snd_soc_wcd939x_sdw snd_soc_wcd939x snd_soc_aw88261 snd_soc_sc8280xp oneplus_pogo nt36532e_ts sc8547_cp caihong_pen_power sc820cs sc1320cs gt9772 xpad joydev uinput"
 
 list=$(mktemp)
 depends=$(mktemp)

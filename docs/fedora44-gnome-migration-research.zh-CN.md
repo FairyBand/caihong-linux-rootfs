@@ -28,7 +28,7 @@ SHA256 0361c13141e6f57e24d6ee5227066c33a45f7f92a95f41d0bbd343e4fd05da18
 
 ### 现状和差异
 
-上游 Caihong 内核树为 `Osilvfe/linux:caihong-v7.2`。原始 `arch/arm64/configs/caihong_defconfig` 只显式打开了 `CONFIG_SECURITY=y`、`CONFIG_AUDIT=y` 和 `CONFIG_EXT4_FS_SECURITY=y`。对该 defconfig 执行 `olddefconfig` 后，关键结果是：
+上游 Caihong 内核树为 `Osilvfe/linux:caihong-v7.3`。原始 `arch/arm64/configs/caihong_defconfig` 只显式打开了 `CONFIG_SECURITY=y`、`CONFIG_AUDIT=y` 和 `CONFIG_EXT4_FS_SECURITY=y`。对该 defconfig 执行 `olddefconfig` 后，关键结果是：
 
 ```text
 CONFIG_SECCOMP=y
@@ -101,7 +101,7 @@ SELinux 验收门槛：`getenforce` 为 `Enforcing`；`sestatus` 显示 targeted
 
 ## 2. Pogo 键盘和 GNOME
 
-Pogo 的关键适配在内核驱动 [`oneplus_pogo.c`](https://github.com/Osilvfe/linux/blob/caihong-v7.2/drivers/input/keyboard/oneplus_pogo.c) 中完成，不依赖 KDE：
+Pogo 的关键适配在内核驱动 [`oneplus_pogo.c`](https://github.com/Osilvfe/linux/blob/caihong-v7.3/drivers/input/keyboard/oneplus_pogo.c) 中完成，不依赖 KDE：
 
 * 设备通过 serdev/UART 协议产生标准 evdev keyboard 和 touchpad 设备。
 * 顶部按键在驱动中映射到 `KEY_F1` 到 `KEY_F12`。

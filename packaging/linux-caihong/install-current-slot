@@ -1,0 +1,223 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026 Osilvfe <osilvfe@gmail.com>
+set -eu
+
+package_dir=/usr/lib/linux-caihong
+slot_file=/run/caihong/boot-slot
+compatible=/sys/firmware/devicetree/base/compatible
+partitions=/dev/disk/by-partlabel
+
+fail()
+{
+	echo "linux-caihong: $*" >&2
+	exit 1
+}
+
+activate_modules()
+{
+	private_modules="$package_dir/modules/$release"
+	runtime_modules="/usr/lib/modules/$release"
+	state_dir=/var/lib/linux-caihong
+	state_file=$state_dir/active-releases
+	state_file_new=$state_file.new
+	[ -d "$private_modules" ] || fail "missing module payload for $release"
+
+	running_release=$(uname -r)
+	install -d -m 0755 "$state_dir"
+	: > "$state_file_new"
+	if [ -r "$state_file" ]; then
+		while IFS= read -r old_release; do
+			case "$old_release" in
+			''|*/*|.|..) continue ;;
+			esac
+			[ "$old_release" = "$release" ] && continue
+			if [ "$old_release" = "$running_release" ]; then
+				printf '%s\n' "$old_release" >> "$state_file_new"
+			else
+				rm -rf -- "/usr/lib/modules/$old_release"
+			fi
+		done < "$state_file"
+	fi
+
+	temporary="/usr/lib/modules/.$release.new.$$"
+	rm -rf -- "$temporary"
+	install -d -m 0755 /usr/lib/modules
+	cp -al -- "$private_modules" "$temporary"
+	rm -rf -- "$runtime_modules"
+	mv -- "$temporary" "$runtime_modules"
+	printf '%s\n' "$release" >> "$state_file_new"
+	mv -f -- "$state_file_new" "$state_file"
+	chmod 0644 "$state_file"
+
+	depmod "$release"
+	pen_module=$(find "$runtime_modules" -type f \
+		-name caihong_pen_power.ko -print -quit)
+	if [ -n "$pen_module" ]; then
+		install -D -m 0644 "$pen_module" \
+			/usr/local/lib/caihong/caihong_pen_power.ko
+	fi
+}
+
+remove_modules()
+{
+	state_file=/var/lib/linux-caihong/active-releases
+	if [ -r "$state_file" ]; then
+		while IFS= read -r installed; do
+			case "$installed" in
+			''|*/*|.|..) continue ;;
+			esac
+			rm -rf -- "/usr/lib/modules/$installed"
+		done < "$state_file"
+	fi
+	rm -f -- "$state_file" /usr/local/lib/caihong/caihong_pen_power.ko
+	depmod -a
+}
+
+read_slot_file()
+{
+	[ -r "$slot_file" ] || return 1
+	read -r slot < "$slot_file" || return 1
+	case "$slot" in
+		a|b) printf '%s\n' "$slot" ;;
+		*) return 1 ;;
+	esac
+}
+
+read_cmdline_slot()
+{
+	while IFS= read -r token; do
+		case "$token" in
+			androidboot.slot_suffix=_a|slot_suffix=_a) printf '%s\n' a; return 0 ;;
+			androidboot.slot_suffix=_b|slot_suffix=_b) printf '%s\n' b; return 0 ;;
+		esac
+	done <<EOF
+$(tr ' ' '\n' < /proc/cmdline)
+EOF
+	return 1
+}
+
+scan_running_kernel_slot()
+{
+	running_release=$(uname -r)
+	found=
+	for candidate in a b; do
+		partition="$partitions/boot_$candidate"
+		[ -r "$partition" ] || continue
+		if grep -aFqm1 -- "$running_release" "$partition"; then
+			[ -z "$found" ] || return 1
+			found=$candidate
+		fi
+	done
+	[ -n "$found" ] || return 1
+	printf '%s\n' "$found"
+}
+
+detect_slot()
+{
+	slot=$(read_slot_file || true)
+	[ -z "$slot" ] || { printf '%s\n' "$slot"; return 0; }
+	slot=$(read_cmdline_slot || true)
+	[ -z "$slot" ] || { printf '%s\n' "$slot"; return 0; }
+	scan_running_kernel_slot
+}
+
+detect_root_partlabel()
+{
+	label=$(findmnt -n -o PARTLABEL / 2>/dev/null || true)
+	if [ -z "$label" ]; then
+		source=$(findmnt -n -o SOURCE / 2>/dev/null || true)
+		if [ -n "$source" ]; then
+			label=$(blkid -s PARTLABEL -o value "$source" 2>/dev/null || true)
+		fi
+	fi
+	if [ -z "$label" ]; then
+		while IFS= read -r token; do
+			case "$token" in
+				root=PARTLABEL=*) label=${token#root=PARTLABEL=} ;;
+			esac
+		done <<EOF
+$(tr ' ' '\n' < /proc/cmdline)
+EOF
+	fi
+	case "$label" in
+		linux|userdata) printf '%s\n' "$label" ;;
+		*) return 1 ;;
+	esac
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+	fail "must run as root"
+fi
+
+if [ "${1:-}" = --remove-modules ]; then
+	remove_modules
+	exit 0
+fi
+
+release=$(cat "$package_dir/kernel-release")
+
+if [ "${CAIHONG_SKIP_BOOT_FLASH:-0}" = 1 ] || \
+	[ -e /run/caihong/offline-rootfs-build ]; then
+	activate_modules
+	echo "linux-caihong: skipped boot flash for offline rootfs construction"
+	exit 0
+fi
+
+if [ ! -r "$compatible" ]; then
+	activate_modules
+	echo "linux-caihong: no live device tree; boot flash was skipped"
+	exit 0
+fi
+if ! grep -aFq 'oneplus,caihong' "$compatible"; then
+	fail "this device is not compatible with oneplus,caihong"
+fi
+
+slot=$(detect_slot || true)
+case "$slot" in
+	a|b) ;;
+	*) fail "unable to determine the slot that booted the running kernel" ;;
+esac
+root_partlabel=$(detect_root_partlabel || true)
+case "$root_partlabel" in
+	linux|userdata) ;;
+	*) fail "root filesystem is not PARTLABEL=linux or PARTLABEL=userdata" ;;
+esac
+
+image="$package_dir/boot-$root_partlabel.img"
+target="$partitions/boot_$slot"
+[ -f "$image" ] || fail "missing boot image for PARTLABEL=$root_partlabel"
+[ -b "$target" ] || fail "missing boot partition: $target"
+
+if [ "${1:-}" = --detect ]; then
+	printf 'slot=%s root_partlabel=%s image=%s target=%s\n' \
+		"$slot" "$root_partlabel" "$image" "$target"
+	exit 0
+fi
+if [ "$#" -ne 0 ]; then
+	fail "usage: install-current-slot [--detect|--remove-modules]"
+fi
+
+image_bytes=$(stat -c '%s' "$image")
+target_bytes=$(blockdev --getsize64 "$target")
+[ "$image_bytes" -le "$target_bytes" ] || \
+	fail "boot image is larger than $target"
+
+install -d -m 0755 /run/lock
+exec 9>/run/lock/linux-caihong-flash.lock
+flock -x 9
+
+activate_modules
+
+if cmp -s -n "$image_bytes" "$image" "$target"; then
+	echo "linux-caihong: boot_$slot already contains $release"
+	exit 0
+fi
+
+echo "linux-caihong: writing $release to boot_$slot for PARTLABEL=$root_partlabel"
+dd if="$image" of="$target" bs=4M conv=fsync,notrunc status=progress
+blockdev --flushbufs "$target"
+if ! cmp -s -n "$image_bytes" "$image" "$target"; then
+	fail "boot_$slot read-back verification failed"
+fi
+echo "linux-caihong: verified boot_$slot; slot metadata was not changed"

@@ -25,6 +25,8 @@ for path in \
 	usr/lib/linux-caihong/kernel-release usr/lib/linux-caihong/install-current-slot \
 	usr/local/sbin/qbootctl usr/local/libexec/caihong-nvram-mac \
 	usr/lib/firmware/updates/qcom/sm8650/SM8650-MTP-tplg.bin \
+	usr/lib/firmware/qcom/sm8650/CAMERA_ICP.mbn \
+	usr/lib/udev/rules.d/99-caihong-flashlight.rules \
 	etc/modules-load.d/caihong.conf; do
 	require_path "$path"
 done
@@ -97,6 +99,26 @@ else
 		snd-soc-sc8280xp; do
 		if ! find "$module_dir" -type f -name "$module.ko" -print -quit | grep -q .; then
 			echo "missing Fedora audio module: $module" >&2
+			failed=1
+		fi
+	done
+	# The display driver may be built in or modular depending on the kernel
+	# fragment, but Camera ICP/BPS must be present as modules for the ISP
+	# pipeline to probe.
+	if ! grep -q '/msm\.ko$' "$module_dir/modules.builtin"; then
+		msm_module=$(find "$module_dir" -type f -name msm.ko -print -quit)
+		if [ -z "$msm_module" ]; then
+			echo "missing release kernel module: msm" >&2
+			failed=1
+		elif ! modinfo -F vermagic "$msm_module" 2>/dev/null |
+			grep -q "^${releases[0]} "; then
+			echo "kernel module release mismatch: msm" >&2
+			failed=1
+		fi
+	fi
+	for module in qcom_camera_icp qcom-camera-icp-bps; do
+		if ! find "$module_dir" -type f -name "$module.ko" -print -quit | grep -q .; then
+			echo "missing Fedora camera module: $module" >&2
 			failed=1
 		fi
 	done

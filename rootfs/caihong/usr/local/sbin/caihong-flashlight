@@ -51,7 +51,7 @@ flash_nodes() {
 }
 
 sysfs_flash_nodes() {
-	for node in /sys/class/leds/*:flash-*; do
+	for node in /sys/class/leds/*:flash /sys/class/leds/*:flash-*; do
 		[ -d "$node" ] || continue
 		target_matches_name "${node##*/}" || continue
 		echo "$node"

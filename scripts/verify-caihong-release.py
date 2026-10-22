@@ -75,7 +75,12 @@ REQUIRED_MODULES = (
     "snd-soc-wcd939x-sdw",
     "snd-soc-aw88261",
     "snd-soc-sc8280xp",
+    # Camera ICP/BPS is built as modules in caihong_defconfig and the BPS
+    # device must be present for the ISP pipeline to probe.
+    "qcom_camera_icp",
+    "qcom-camera-icp-bps",
 )
+REQUIRED_MODULES_OR_BUILTIN = ("msm",)
 EARLY_FIRMWARE = (
     "qcom/gen70900_sqe.fw",
     "qcom/gmu_gen70900.bin",
@@ -203,6 +208,22 @@ def main() -> int:
             "bytes": len(payload),
             "sha256": digest(payload),
         }
+    builtin_modules = (release_dir / "modules.builtin").read_text().splitlines()
+    for module in REQUIRED_MODULES_OR_BUILTIN:
+        matches = list(release_dir.rglob(f"{module}.ko"))
+        if len(matches) == 1:
+            payload = matches[0].read_bytes()
+            if kernel_release.encode("ascii") not in payload:
+                raise VerificationError(f"module vermagic mismatch: {module}")
+            module_hashes[module] = {
+                "path": str(matches[0].relative_to(args.module_tree)),
+                "bytes": len(payload),
+                "sha256": digest(payload),
+            }
+        elif any(path.endswith(f"/{module}.ko") for path in builtin_modules):
+            module_hashes[module] = {"built_in": True}
+        else:
+            raise VerificationError(f"expected module or built-in driver named {module}")
 
     firmware_hashes = {}
     for relative in EARLY_FIRMWARE:
