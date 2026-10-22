@@ -157,6 +157,17 @@ else
 			failed=1
 		fi
 	done
+	if ! grep -q '/msm\.ko$' "$module_dir/modules.builtin"; then
+		msm_module=$(find "$module_dir" -type f -name msm.ko -print -quit)
+		if [ -z "$msm_module" ]; then
+			echo "missing release kernel module: msm" >&2
+			failed=1
+		elif ! modinfo -F vermagic "$msm_module" 2>/dev/null |
+			grep -q "^$kernel_release "; then
+			echo "kernel module release mismatch: msm" >&2
+			failed=1
+		fi
+	fi
 	for module in oneplus_pogo nt36532e_ts sc8547_cp caihong_pen_power \
 		bnep rfcomm hidp veth bridge br_netfilter nft_compat xt_CHECKSUM \
 		zram zstd fuse cpufreq_conservative snd-seq hid-steam hid-nintendo \
