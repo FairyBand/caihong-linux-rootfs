@@ -14,7 +14,7 @@ on:
         default: permissive
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: caihong-fedora-rootfs-${{ github.ref }}
@@ -80,6 +80,15 @@ jobs:
             > release/SHA256SUMS.fedora
           cat release/SHA256SUMS.fedora
 
+      - name: Assemble the Copr kernel payload archive
+        run: |
+          # caihong-kernel-payload is built by Copr from a source archive rather
+          # than from this repository, because the kernel build and the Android
+          # boot images happen here.  Publish the archive so the RPM repository
+          # can hand it to Copr without a manual copy.
+          scripts/build-kernel-payload.sh
+          cat "release/$(cat release/KERNEL_PAYLOAD)"
+
       - name: Upload Fedora rootfs artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -88,10 +97,43 @@ jobs:
             release/caihong-fedora-rootfs-*.ext4.sparse.img
             release/caihong-boot-*.img
             release/caihong-boot-*.img.json
+            release/caihong-kernel-payload-*.tar.zst
             release/SHA256SUMS.boot
             release/SHA256SUMS.fedora
-            release/config-*
             release/KERNEL_RELEASE
+            release/KERNEL_PAYLOAD
+            release/config-*
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+
+      - name: Publish the kernel payload for Copr
+        # A workflow artifact expires, and the RPM repository is only rebuilt
+        # when someone remembers to sync.  Keep the payload on a rolling tag so
+        # the RPM workflow can always fetch the current one.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          payload="release/$(cat release/KERNEL_PAYLOAD)"
+          name=$(basename "$payload")
+          test -f "$payload"
+
+          if ! gh release view kernel-payload >/dev/null 2>&1; then
+            gh release create kernel-payload \
+              --title "Caihong kernel payload" \
+              --notes "Rolling release. The asset is the kernel payload built from the current fedora branch; the RPM repository fetches it by name."
+          fi
+          gh release upload kernel-payload --clobber "$payload"
+
+          # The tag must name exactly one payload: the RPM spec derives the
+          # package version from the file name, so a stale asset would let two
+          # different kernels look like the same package.
+          gh release view kernel-payload --json assets --jq '.assets[].name' \
+            | while read -r asset; do
+              if [ "$asset" != "$name" ]; then
+                echo "removing stale payload $asset"
+                gh release delete-asset kernel-payload --yes "$asset"
+              fi
+            done
+          gh release view kernel-payload --json assets --jq '.assets[].name'
