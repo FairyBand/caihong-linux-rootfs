@@ -16,6 +16,10 @@ camera modes with the matching stock Qualcomm BPS striping library. They are
 runtime inputs for the mainline Camera ICP/BPS driver and remain subject to
 the vendor firmware terms.
 
+`CAMERA_ICP.mbn` is the matching monolithic stock Camera ICP firmware image.
+The Camera ICP remoteproc driver authenticates it through Qualcomm PAS before
+the BPS hardware pipeline is exposed to libcamera.
+
 `SHA256SUMS` records every binary release input. The build verifies this file
 before embedding early GPU firmware or copying the runtime firmware tree.
 
